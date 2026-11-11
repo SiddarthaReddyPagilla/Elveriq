@@ -1,9 +1,10 @@
 """Public, clearly fictional, read-only demo warehouse with example data."""
 from datetime import date, timedelta
 from sqlalchemy import select
-from .models import Business
+from .models import Business, Supplier
 from .inventory_service import create_warehouse, create_product, apply_stock_delta, create_supplier
 from .order_service import create_order
+from .purchasing_service import create_purchase_order
 
 DEMO_SLUG = "sample-workspace"
 
@@ -35,4 +36,10 @@ def seed_demo(db):
         create_order(session, business.id, central.id, "Denton Retail Sample",
                      (date.today() + timedelta(days=3)).isoformat(),
                      [{"sku": "WATER-500ML", "quantity": 24}, {"sku": "SNACK-001", "quantity": 6}])
+        supplier = session.scalar(select(Supplier).where(
+            Supplier.business_id == business.id,
+            Supplier.name == "North Texas Wholesale (Fictional)"))
+        create_purchase_order(session, business.id, supplier.id, central.id,
+                              (date.today() + timedelta(days=4)).isoformat(),
+                              "SAMPLE-PO-001", [{"sku": "SOAP-001", "quantity": 60}])
         session.commit()

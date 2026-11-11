@@ -96,6 +96,34 @@ class Supplier(Base):
     email: Mapped[str] = mapped_column(String(254), default="")
 
 
+class PurchaseOrder(Base):
+    __tablename__ = "purchase_orders"
+    __table_args__ = (UniqueConstraint("business_id", "reference"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"), nullable=False)
+    reference: Mapped[str] = mapped_column(String(100), nullable=False)
+    expected_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="ordered")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PurchaseOrderLine(Base):
+    __tablename__ = "purchase_order_lines"
+    __table_args__ = (
+        CheckConstraint("ordered_quantity > 0", name="purchase_order_quantity_positive"),
+        CheckConstraint("received_quantity >= 0 AND received_quantity <= ordered_quantity",
+                        name="purchase_order_received_within_ordered"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    purchase_order_id: Mapped[int] = mapped_column(ForeignKey("purchase_orders.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+    ordered_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    received_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class CustomerOrder(Base):
     __tablename__ = "customer_orders"
     id: Mapped[int] = mapped_column(primary_key=True)

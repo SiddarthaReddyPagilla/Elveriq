@@ -14,6 +14,8 @@ from .inventory_service import (apply_stock_delta, create_product, create_suppli
                                 create_warehouse, list_inventory, list_movements)
 from .models import Business, CustomerOrder, Product, Supplier, Warehouse
 from .order_service import create_order, change_order_status, list_orders
+from .purchasing_service import (create_purchase_order, receive_purchase_line,
+    cancel_purchase_order, list_purchase_orders)
 
 router = APIRouter(prefix="/api")
 
@@ -76,6 +78,24 @@ class AdjustIn(BaseModel):
 
 class OrderItemIn(BaseModel):
     sku: str
+    quantity: int = Field(ge=1, le=1_000_000)
+
+
+class PurchaseItemIn(BaseModel):
+    sku: str = Field(min_length=1, max_length=80)
+    quantity: int = Field(ge=1, le=1_000_000)
+
+
+class PurchaseIn(BaseModel):
+    supplier_id: int
+    warehouse_id: int
+    reference: str = Field(min_length=1, max_length=100)
+    expected_date: date | None = None
+    items: list[PurchaseItemIn] = Field(min_length=1, max_length=100)
+
+
+class PurchaseReceiveIn(BaseModel):
+    line_id: int
     quantity: int = Field(ge=1, le=1_000_000)
 
 
@@ -204,6 +224,46 @@ def update_order(order_id: int, action: str, request: Request,
                  x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
     actor = write_access(request, session, x_csrf_token)
     order = change_order_status(session, actor.business_id, order_id, action, actor.id)
+    session.commit()
+    return {"id": order.id, "status": order.status}
+
+
+@router.get("/purchase-orders")
+def purchase_orders(request: Request, demo: bool = False, session: Session = Depends(get_db)):
+    return list_purchase_orders(session, read_access(request, session, demo))
+
+
+@router.post("/purchase-orders", status_code=201)
+def add_purchase_order(payload: PurchaseIn, request: Request,
+                       x_csrf_token: str = Header(default=""),
+                       session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    order = create_purchase_order(session, actor.business_id, payload.supplier_id,
+                                  payload.warehouse_id,
+                                  payload.expected_date.isoformat() if payload.expected_date else None,
+                                  payload.reference,
+                                  [item.model_dump() for item in payload.items])
+    session.commit()
+    return {"id": order.id, "status": order.status}
+
+
+@router.post("/purchase-orders/{order_id}/receive")
+def receive_purchase_order_line(order_id: int, payload: PurchaseReceiveIn, request: Request,
+                                x_csrf_token: str = Header(default=""),
+                                session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    order = receive_purchase_line(session, actor.business_id, order_id,
+                                  payload.line_id, payload.quantity, actor.id)
+    session.commit()
+    return {"id": order.id, "status": order.status}
+
+
+@router.post("/purchase-orders/{order_id}/cancel")
+def cancel_purchase(order_id: int, request: Request,
+                    x_csrf_token: str = Header(default=""),
+                    session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    order = cancel_purchase_order(session, actor.business_id, order_id)
     session.commit()
     return {"id": order.id, "status": order.status}
 
