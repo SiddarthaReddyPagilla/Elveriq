@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="DispatchForge Warehouse Cloud — inventory, orders, and operations software prototype.">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="/" class="brand" aria-label="DispatchForge Home"><span class="brand-mark">D</span> Dispatch<span class="brand-accent">Forge</span><span class="brand-cloud">CLOUD</span></a>
+    <nav class="top-nav" aria-label="Main navigation">
+      <a href="/demo">Live sample</a>
+      <a href="/login">Sign in</a>
+      <a class="button button-small" href="/register">Create workspace</a>
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer class="site-footer">DispatchForge Warehouse Cloud · Software preview · Fictional demonstration data · Not production-ready for business-critical inventory.</footer>
+</body>
+</html>

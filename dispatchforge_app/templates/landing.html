@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero page-width">
+  <div class="hero-copy">
+    <span class="eyebrow"><span class="pulse-dot"></span> BUILT FOR INDEPENDENT WAREHOUSES</span>
+    <h1>Know your stock.<br><span>Run your warehouse.</span></h1>
+    <p>Products, inventory movements, scheduled orders and team operations — in one clear workspace. Start with a real workflow, not another spreadsheet.</p>
+    <div class="button-row"><a class="button" href="/demo">Explore the sample dashboard <span>↗</span></a><a class="button button-outline" href="/register">Create a workspace</a></div>
+    <p class="subtle small">Early-stage software preview. No credit card. Sample environment is read-only.</p>
+  </div>
+  <div class="hero-preview">
+    <div class="preview-top"><span class="preview-brand">▦ &nbsp; Warehouse overview</span><span class="online-dot">● Demo data</span></div>
+    <p class="muted">Denton Sample Distribution</p>
+    <div class="preview-stats"><div><span>Product SKUs</span><strong>07</strong></div><div><span>Locations</span><strong>02</strong></div><div><span>Workflows</span><strong>04</strong></div></div>
+    <div class="preview-divider"></div>
+    <p class="preview-section-label">TODAY'S OPERATIONS</p>
+    <div class="preview-line"><span>↘ &nbsp; Incoming stock</span><strong>Track receipts</strong></div>
+    <div class="preview-line"><span>◷ &nbsp; Scheduled orders</span><strong>Reserve units</strong></div>
+    <div class="preview-line"><span>≡ &nbsp; Inventory changes</span><strong>Audit history</strong></div>
+  </div>
+</section>
+<section class="features page-width">
+  <div class="section-heading"><span class="eyebrow">THE FOUNDATION</span><h2>Warehouse operations, organized.</h2><p>One workflow from incoming stock to fulfilled orders.</p></div>
+  <div class="feature-grid">
+    <article class="feature-card"><div class="feature-icon">▦</div><h3>Inventory in one place</h3><p>Track products, SKUs, availability, reservations and low-stock items per location.</p></article>
+    <article class="feature-card"><div class="feature-icon">⇥</div><h3>Stock movement history</h3><p>Record receipts, adjustments and order changes with an append-only movement log.</p></article>
+    <article class="feature-card"><div class="feature-icon">◷</div><h3>Scheduled fulfillment</h3><p>Accept future customer orders, reserve items, then fulfill or cancel safely.</p></article>
+    <article class="feature-card"><div class="feature-icon">⇄</div><h3>Import and export</h3><p>Bring in product catalogs from CSV and export live inventory records for review.</p></article>
+  </div>
+</section>
+<section class="closing-cta page-width"><div><span class="eyebrow">SEE THE WORKFLOW</span><h2>Try the warehouse sample.</h2><p>Explore fictional Denton warehouse data in a read-only public demo.</p></div><a class="button" href="/demo">Open sample ↗</a></section>
+{% endblock %}
