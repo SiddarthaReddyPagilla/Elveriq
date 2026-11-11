@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# DispatchForge Warehouse Cloud local state
+.venv/
+.env
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.db
+.DS_Store
