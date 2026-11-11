@@ -30,7 +30,7 @@ def create_app(db: Database | None = None, settings: Settings | None = None) -> 
         seed_demo(db)
         yield
 
-    app = FastAPI(title="DispatchForge Warehouse Cloud", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Elveriq Warehouse Cloud", version="0.1.0", lifespan=lifespan)
     app.state.db = db
     app.add_middleware(SessionMiddleware, secret_key=settings.secret,
                        same_site="lax", https_only=settings.production,
@@ -55,16 +55,16 @@ def create_app(db: Database | None = None, settings: Settings | None = None) -> 
 
     @app.get("/", response_class=HTMLResponse)
     def landing(request: Request):
-        return render(request, "landing.html", title="DispatchForge | Warehouse Cloud")
+        return render(request, "landing.html", title="Elveriq | Warehouse Cloud")
 
     @app.get("/demo", response_class=HTMLResponse)
     def demo(request: Request):
-        return render(request, "dashboard.html", title="Sample Warehouse | DispatchForge",
+        return render(request, "dashboard.html", title="Sample Warehouse | Elveriq",
                       is_demo=True, workspace="Denton Sample Distribution")
 
     @app.get("/register", response_class=HTMLResponse)
     def registration(request: Request):
-        return render(request, "auth.html", title="Create Workspace | DispatchForge",
+        return render(request, "auth.html", title="Create Workspace | Elveriq",
                       mode="register", error=None)
 
     @app.post("/register")
@@ -88,7 +88,7 @@ def create_app(db: Database | None = None, settings: Settings | None = None) -> 
 
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):
-        return render(request, "auth.html", title="Sign In | DispatchForge",
+        return render(request, "auth.html", title="Sign In | Elveriq",
                       mode="login", error=None)
 
     @app.post("/login")
@@ -121,7 +121,7 @@ def create_app(db: Database | None = None, settings: Settings | None = None) -> 
             if user is None:
                 return RedirectResponse("/login", status_code=303)
             business = session.scalar(select(Business).where(Business.id == user.business_id))
-            return render(request, "dashboard.html", title=f"{business.name} | DispatchForge",
+            return render(request, "dashboard.html", title=f"{business.name} | Elveriq",
                           is_demo=False, workspace=business.name, slug=business.slug,
                           role=user.role)
 

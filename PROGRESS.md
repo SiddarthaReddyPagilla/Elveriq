@@ -1,4 +1,4 @@
-# DispatchForge — Development Progress
+# Elveriq — Development Progress
 
 ## Latest milestone: Warehouse Cloud web MVP foundation
 
@@ -33,7 +33,7 @@
 
 ## Product direction
 
-DispatchForge is now a **website-first warehouse management and inventory SaaS concept** for independent warehouses and small distributors, beginning with fictional Denton sample data. The plan is to validate real workflows, then build a customer-safe pilot and eventually a mobile client sharing the same backend API. See [ROADMAP.md](ROADMAP.md).
+Elveriq is now a **website-first warehouse management and inventory SaaS concept** for independent warehouses and small distributors, beginning with fictional Denton sample data. The plan is to validate real workflows, then build a customer-safe pilot and eventually a mobile client sharing the same backend API. See [ROADMAP.md](ROADMAP.md).
 
 ## Engineering note
 

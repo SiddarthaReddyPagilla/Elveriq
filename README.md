@@ -1,10 +1,10 @@
-# DispatchForge Warehouse Cloud
+# Elveriq Warehouse Cloud
 
 **A website-first warehouse operations SaaS prototype for independent distributors and small warehouses.**
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688)](https://fastapi.tiangolo.com/) [![Status](https://img.shields.io/badge/status-prototype-CC8736)](#prototype--security-notice)
 
-DispatchForge started as a Python inventory and warehouse-ranking exercise. This repository now also includes a responsive web dashboard and a database-backed warehouse workflow. The original learning modules and their tests remain in place.
+Elveriq started as a Python inventory and warehouse-ranking exercise. This repository now also includes a responsive web dashboard and a database-backed warehouse workflow. The original learning modules and their tests remain in place.
 
 > **Product status:** Prototype and fictional demo data. Not an operating logistics business and **not yet safe for business-critical production inventory**. There is no live deployment URL included in this archive.
 
@@ -89,7 +89,7 @@ dispatchforge_app/
   templates/          HTML pages
   static/             CSS, JavaScript, sample CSV
 tests_web/              Web and database integration tests
-inventory.py ...       Original DispatchForge learning modules, unchanged
+inventory.py ...       Original Elveriq learning modules, unchanged
 ARCHITECTURE.md         Technical choices and invariants
 SECURITY.md             Production-readiness gaps
 ROADMAP.md              Product scope and future milestones

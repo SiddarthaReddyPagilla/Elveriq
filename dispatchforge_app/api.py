@@ -210,7 +210,7 @@ def update_order(order_id: int, action: str, request: Request,
 
 @router.get("/health")
 def health():
-    return {"status": "ok", "app": "dispatchforge"}
+    return {"status": "ok", "app": "elveriq"}
 
 
 @router.post("/import/products")
@@ -269,4 +269,4 @@ def export_inventory(request: Request, demo: bool = False, session: Session = De
     for row in rows:
         writer.writerow([csv_cell(row[field]) for field in fields])
     return Response(stream.getvalue(), media_type="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": 'attachment; filename="dispatchforge-inventory.csv"'})
+                    headers={"Content-Disposition": 'attachment; filename="elveriq-inventory.csv"'})

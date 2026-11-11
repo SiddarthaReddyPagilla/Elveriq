@@ -1,8 +1,8 @@
-# DispatchForge Architecture (MVP)
+# Elveriq Architecture (MVP)
 
 ## Product boundaries
 
-Customer: a small distributor / independent warehouse operator. The product stores their warehouse data and provides workflows; DispatchForge does not own the customer's inventory, sell goods, or dispatch real drones.
+Customer: a small distributor / independent warehouse operator. The product stores their warehouse data and provides workflows; Elveriq does not own the customer's inventory, sell goods, or dispatch real drones.
 
 ## System map
 
