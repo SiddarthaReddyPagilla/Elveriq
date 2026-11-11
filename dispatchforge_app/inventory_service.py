@@ -21,6 +21,7 @@ def create_warehouse(session: Session, business_id: int, name: str, city: str = 
     session.flush()
     for product_id in session.scalars(select(Product.id).where(Product.business_id == business_id)):
         session.add(StockLevel(business_id=business_id, warehouse_id=warehouse.id, product_id=product_id))
+    session.flush()
     return warehouse
 
 
@@ -29,8 +30,8 @@ def create_product(session: Session, business_id: int, sku: str, name: str,
     sku = clean_text(sku, "SKU", 80).upper()
     name = clean_text(name, "Product name", 180)
     unit = clean_text(unit, "Unit", 24)
-    if price_cents < 0 or reorder_point < 0:
-        raise DomainError("Price and reorder point cannot be negative")
+    if not 0 <= price_cents <= 100_000_000 or not 0 <= reorder_point <= 1_000_000:
+        raise DomainError("Price or reorder point is outside allowed range")
     if session.scalar(select(Product.id).where(Product.business_id == business_id, Product.sku == sku)):
         raise DomainError(f"SKU {sku} already exists", 409)
     product = Product(business_id=business_id, sku=sku, name=name, price_cents=price_cents,
@@ -39,6 +40,7 @@ def create_product(session: Session, business_id: int, sku: str, name: str,
     session.flush()
     for warehouse_id in session.scalars(select(Warehouse.id).where(Warehouse.business_id == business_id)):
         session.add(StockLevel(business_id=business_id, warehouse_id=warehouse_id, product_id=product.id))
+    session.flush()
     return product
 
 
