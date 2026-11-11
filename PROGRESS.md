@@ -1,70 +1,40 @@
 # DispatchForge — Development Progress
 
-## Project Overview
+## Latest milestone: Warehouse Cloud web MVP foundation
 
-DispatchForge is a Python and SQL delivery optimization
-project focused on the Dallas–Fort Worth area.
+**Verified in the provided build:** 46 passing tests (29 original Python tests and 17 website/database/security tests). This is a local automated-test result, not evidence of deployment or paying customers.
 
-The project aims to improve warehouse selection,
-inventory allocation, and delivery feasibility
-using algorithms and database systems.
+### Built earlier (preserved)
 
-Geographic reference locations are based on public
-information. Operational data is simulated.
+- Python in-memory simulated inventory availability and reservation.
+- Eligibility filtering and stock-based warehouse ranking.
+- Geographic Haversine distance function and DFW public reference points.
+- 29 original automated tests.
+- Git repository history and incremental project documentation.
 
-## Completed Features
+### Added in this milestone
 
-### 1. Warehouse Reference System
-- Defined three DFW warehouse reference locations.
-- Stored warehouse information using Python dictionaries.
+- Responsive public landing page and read-only fictional Denton warehouse sample.
+- Business workspace registration and login with hashed passwords and signed cookies.
+- Tenant-scoped SQL database schema using SQLAlchemy (SQLite for local development).
+- Warehouse / SKU catalog, receiving, stock movements, stock availability and low-stock alerts.
+- Future-dated customer orders, reservations, fulfillment, cancellation and audit history.
+- Supplier directory, CSV catalog import and inventory export.
+- FastAPI JSON endpoints and example Docker / managed-host deployment configuration.
+- 17 new integration tests covering authentication, CSRF, tenant separation, inventory and order flows.
 
-### 2. Inventory Management
-- Created inventory availability checks.
-- Implemented basic in-memory inventory reservations.
-- Added tests for insufficient stock and edge cases.
+### Not yet delivered
 
-### 3. Warehouse Eligibility
-- Developed an algorithm to identify warehouses
-  capable of fulfilling customer orders.
+- No actual public website has been deployed by this archive.
+- No verified customer integrations, real warehouse onboarding, or subscription billing.
+- No production-ready security, employee invitation workflow, or email verification.
+- No PostgreSQL migrations, backup policies, or concurrency/load testing.
+- No purchase-order workflow, bin scanning, mobile app, or advanced supply chain forecasting yet.
 
-### 4. Inventory-Based Warehouse Ranking
-- Implemented stock-based warehouse ranking.
-- Added automated ranking tests.
+## Product direction
 
-### 5. Geographic Distance Engine
-- Implemented the Haversine distance formula.
-- Added six geographic distance tests.
-- Verified 29 total automated tests passing.
+DispatchForge is now a **website-first warehouse management and inventory SaaS concept** for independent warehouses and small distributors, beginning with fictional Denton sample data. The plan is to validate real workflows, then build a customer-safe pilot and eventually a mobile client sharing the same backend API. See [ROADMAP.md](ROADMAP.md).
 
-## Current Development
+## Engineering note
 
-- Adding DFW geographic reference coordinates.
-- Integrating geographic distance into warehouse ranking.
-- Preparing automated tests for proximity-based selection.
-
-## Planned Improvements
-
-- PostgreSQL database integration.
-- Reliable concurrent inventory reservations.
-- Road-network distance and travel-time estimates.
-- Courier assignment algorithms.
-- Delivery feasibility prediction.
-- REST APIs using FastAPI.
-- Docker and cloud deployment.
-
-## Engineering Notes
-
-The current system uses an in-memory simulation.
-It is not yet a production-ready delivery service.
-
-Straight-line distance does not represent driving distance
-or actual delivery time.
-
-Future benchmarks will compare inventory-based
-and geography-aware warehouse selection.
-
-## Testing
-
-Previously verified: 29 automated Python tests passing.
-
-Testing will be repeated before the next commit.
+The original in-memory DFW ranking modules remain separate from the new database-backed tenant inventory system. That is intentional: we are not pretending the old example dictionary is a production stock source.
