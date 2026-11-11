@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="workspace" class="workspace page-width" data-demo="{{ 'true' if is_demo else 'false' }}" data-role="{{ role | default('demo') }}">
+  <aside class="sidebar">
+    <div class="sidebar-label">WORKSPACE</div>
+    <div class="workspace-identity"><span class="avatar">▦</span><div><strong>{{ workspace }}</strong><small>{{ 'Read-only sample' if is_demo else 'Private workspace' }}</small></div></div>
+    <nav class="sidebar-links" aria-label="Warehouse navigation">
+      <button class="side-link active" data-section="overview">◫ &nbsp; Overview</button>
+      <button class="side-link" data-section="inventory">▣ &nbsp; Inventory</button>
+      <button class="side-link" data-section="orders">◷ &nbsp; Scheduled orders</button>
+      <button class="side-link" data-section="activity">⇥ &nbsp; Stock movements</button>
+      <button class="side-link" data-section="suppliers">♧ &nbsp; Suppliers</button>
+    </nav>
+    {% if not is_demo %}<div class="sidebar-bottom"><span class="eyebrow">WORKSPACE ID</span><code class="slug-code">{{ slug }}</code><small>Save this ID to sign in again.</small>
+      <form action="/logout" method="post"><input name="csrf" type="hidden" value="{{ csrf }}"><button type="submit" class="text-button">Sign out ↗</button></form></div>{% endif %}
+  </aside>
+  <div class="dashboard-main">
+    <div class="dashboard-top"><div><span class="eyebrow">OPERATIONS CENTER</span><h1>{{ workspace }}</h1><p>See what's on hand, what's reserved, and what needs attention.</p></div><div class="header-actions">{% if is_demo %}<span class="pill pill-demo">● Read-only sample</span>{% else %}<span class="pill pill-live">● Your workspace</span>{% endif %}<a href="/api/export/inventory.csv{{ '?demo=true' if is_demo else '' }}" class="button button-outline button-small">↓ Export CSV</a></div></div>
+    <div id="notice" class="alert hidden" role="status" aria-live="polite"></div>
+    <section class="section-view" data-view="overview">
+      <div class="stat-grid">
+        <div class="stat-card"><span>Product SKUs</span><strong id="stat-products">—</strong><small>Cataloged products</small></div>
+        <div class="stat-card"><span>Warehouse locations</span><strong id="stat-warehouses">—</strong><small>Active locations</small></div>
+        <div class="stat-card"><span>Stock units on hand</span><strong id="stat-stock">—</strong><small>All locations</small></div>
+        <div class="stat-card"><span>Reserved units</span><strong id="stat-reserved">—</strong><small>Committed to orders</small></div>
+      </div>
+      <div class="two-column">
+        <div class="panel"><div class="panel-title"><div><h2>Inventory needing attention</h2><p>Available stock at or below each product's reorder point.</p></div><span class="pill pill-warn" id="alert-count">— alerts</span></div><div id="low-stock-list" class="table-wrap"><p class="muted">Loading sample inventory…</p></div></div>
+        <div class="panel"><div class="panel-title"><div><h2>Current operations</h2><p>Live summary of this workspace.</p></div></div><div class="summary-rows"><div><span>Reserved customer orders</span><strong id="stat-orders">—</strong></div><div><span>Low-stock records</span><strong id="stat-low">—</strong></div><div><span>Available inventory units</span><strong id="stat-available">—</strong></div></div><div class="tip-box">Every stock change creates a movement record. Orders reserve units before fulfillment.</div></div>
+      </div>
+      {% if is_demo %}<div class="demo-cta"><div><strong>Try this with your own warehouse.</strong><p>Register a private workspace, add products, and create a scheduled order.</p></div><a class="button" href="/register">Create workspace ↗</a></div>{% endif %}
+    </section>
+    <section class="section-view hidden" data-view="inventory"><div class="section-title"><div><h2>Inventory</h2><p>Quantity on hand, reserved stock and remaining availability.</p></div></div>
+      {% if not is_demo %}
+      <div class="form-grid">
+        <form class="mini-form panel" id="product-form"><h3>Add a product</h3><label>SKU<input required name="sku" placeholder="SKU-1001" maxlength="80"></label><label>Product name<input required name="name" placeholder="Packaging material" maxlength="180"></label><div class="form-row"><label>Price ($)<input type="number" min="0" step="0.01" name="price" value="0.00"></label><label>Reorder at<input type="number" min="0" name="reorder_point" value="5"></label></div><button class="button" type="submit">Add product</button></form>
+        <form class="mini-form panel" id="receive-form"><h3>Receive stock</h3><label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label><label>Product SKU<select name="sku" class="sku-select" required></select></label><label>Units received<input type="number" min="1" required name="quantity" value="10"></label><label>Reference note<input name="note" placeholder="Supplier delivery / PO number"></label><button class="button" type="submit">Record receipt</button></form>
+        <form class="mini-form panel owner-only" id="warehouse-form"><h3>Add warehouse</h3><label>Location name<input name="name" required placeholder="North warehouse"></label><label>City<input name="city" placeholder="Denton, TX"></label><button class="button" type="submit">Add location</button></form>
+      </div>
+      <div class="panel import-panel owner-only"><div><h3>Import your catalog</h3><p>Upload CSV columns: <code>sku,name,price_cents,reorder_point,unit</code>. Existing SKUs are skipped; opening stock must be received separately.</p><a href="/static/sample-products.csv" download>Download sample CSV ↗</a></div><form id="import-form" class="inline-upload"><input aria-label="Select CSV file" type="file" name="file" accept=".csv,text/csv" required><button class="button" type="submit">Import CSV</button></form></div>
+      {% endif %}
+      <div class="panel"><div class="panel-title"><h3>Stock by location</h3><span id="inventory-count" class="muted small"></span></div><div id="inventory-table" class="table-wrap"></div></div>
+    </section>
+    <section class="section-view hidden" data-view="orders"><div class="section-title"><div><h2>Scheduled orders</h2><p>Reserve products today for future fulfillment without overselling.</p></div></div>
+      {% if not is_demo %}<form class="panel order-form" id="order-form"><h3>Create a customer order</h3><div class="order-fields"><label>Customer / reference<input name="customer_name" required placeholder="Retail Customer Co."></label><label>Fulfillment date<input name="due_date" id="due-date" type="date" required></label><label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label><label>Product<select name="sku" class="sku-select" required></select></label><label>Quantity<input name="quantity" type="number" min="1" required value="1"></label></div><p class="small muted">Start with one SKU per order. The backend already supports multiple line items.</p><button class="button" type="submit">Reserve order</button></form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>Latest customer orders</h3></div><div id="orders-table" class="table-wrap"></div></div>
+    </section>
+    <section class="section-view hidden" data-view="activity"><div class="section-title"><div><h2>Stock movements</h2><p>Receiving, reservations, fulfillment, cancellations, and stock adjustments.</p></div></div><div class="panel"><div id="movements-table" class="table-wrap"></div></div></section>
+    <section class="section-view hidden" data-view="suppliers"><div class="section-title"><div><h2>Suppliers</h2><p>Track the businesses that supply your stock.</p></div></div>{% if not is_demo %}<form id="supplier-form" class="panel mini-form supplier-add owner-only"><h3>Add a supplier</h3><label>Company name<input name="name" required placeholder="Supplier name"></label><label>Contact email (optional)<input type="email" name="email" placeholder="supplier@example.com"></label><button class="button" type="submit">Save supplier</button></form>{% endif %}<div class="panel"><div id="suppliers-table" class="table-wrap"></div></div></section>
+  </div>
+</div>
+<meta name="csrf-token" content="{{ csrf }}">
+<script src="/static/app.js" defer></script>
+{% endblock %}

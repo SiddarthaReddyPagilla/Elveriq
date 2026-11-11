@@ -1,0 +1,4 @@
+sku,name,price_cents,reorder_point,unit
+WATER-CASE,Water cases,899,20,case
+TAPE-ROLL,Packing tape,349,10,each
+BOX-LARGE,Shipping boxes,599,15,each

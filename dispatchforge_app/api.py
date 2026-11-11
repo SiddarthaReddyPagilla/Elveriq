@@ -211,3 +211,62 @@ def update_order(order_id: int, action: str, request: Request,
 @router.get("/health")
 def health():
     return {"status": "ok", "app": "dispatchforge"}
+
+
+@router.post("/import/products")
+async def import_products(request: Request, file: UploadFile = File(...),
+                          x_csrf_token: str = Header(default=""),
+                          session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token, owner_only=True)
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise DomainError("Upload a .csv file")
+    content = await file.read(1_000_001)
+    if len(content) > 1_000_000:
+        raise DomainError("CSV file must be 1 MB or less")
+    try:
+        text = content.decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text))
+        if reader.fieldnames is None or not {"sku", "name"}.issubset(reader.fieldnames):
+            raise DomainError("CSV must contain sku and name column headers")
+        created = skipped = 0
+        seen = set()
+        for row in reader:
+            if created + skipped >= 1000:
+                raise DomainError("Import a maximum of 1,000 products per file")
+            sku = (row.get("sku") or "").strip().upper()
+            if not sku:
+                raise DomainError("Every CSV row must have a SKU")
+            if sku in seen or session.scalar(select(Product.id).where(
+                    Product.business_id == actor.business_id, Product.sku == sku)):
+                skipped += 1
+                seen.add(sku)
+                continue
+            seen.add(sku)
+            create_product(session, actor.business_id, sku, row.get("name") or "",
+                           int(row.get("price_cents") or 0),
+                           int(row.get("reorder_point") or 5), row.get("unit") or "each")
+            created += 1
+        session.commit()
+        return {"created": created, "skipped": skipped}
+    except (UnicodeDecodeError, ValueError, csv.Error) as exc:
+        session.rollback()
+        raise DomainError("Invalid CSV encoding or numeric value") from exc
+
+
+def csv_cell(value):
+    """Protect spreadsheet programs from formula injection on CSV opening."""
+    value = str(value)
+    return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) else value
+
+
+@router.get("/export/inventory.csv")
+def export_inventory(request: Request, demo: bool = False, session: Session = Depends(get_db)):
+    rows = list_inventory(session, read_access(request, session, demo))
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    fields = ["sku", "name", "warehouse", "on_hand", "reserved", "available", "reorder_point"]
+    writer.writerow(fields)
+    for row in rows:
+        writer.writerow([csv_cell(row[field]) for field in fields])
+    return Response(stream.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="dispatchforge-inventory.csv"'})
