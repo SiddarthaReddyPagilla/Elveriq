@@ -1,4 +1,4 @@
-/* DispatchForge demo dashboard. No credentials or API keys are stored in this file. */
+/* Elveriq demo dashboard. No credentials or API keys are stored in this file. */
 (() => {
   const root = document.getElementById('workspace');
   if (!root) return;
@@ -6,7 +6,7 @@
   const role = root.dataset.role;
   const suffix = demo ? '?demo=true' : '';
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
-  let inventory = [], products = [], warehouses = [], orders = [];
+  let inventory = [], products = [], warehouses = [], orders = [], purchases = [];
 
   if (role !== 'owner') document.querySelectorAll('.owner-only').forEach(el => el.remove());
   const byId = id => document.getElementById(id);
@@ -36,11 +36,11 @@
   }
   async function load() {
     try {
-      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows] = await Promise.all([
+      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows] = await Promise.all([
         api('/overview'), api('/inventory'), api('/products'), api('/warehouses'),
-        api('/orders'), api('/movements'), api('/suppliers')
+        api('/orders'), api('/movements'), api('/suppliers'), api('/purchase-orders')
       ]);
-      inventory = stock; products = productRows; warehouses = warehouseRows; orders = orderRows;
+      inventory = stock; products = productRows; warehouses = warehouseRows; orders = orderRows; purchases = purchaseRows;
       const ids = {'stat-products': overview.products, 'stat-warehouses': overview.warehouses,
         'stat-stock': overview.on_hand, 'stat-reserved': overview.reserved,
         'stat-orders': overview.open_orders, 'stat-low': overview.low_stock,
@@ -59,6 +59,16 @@
         `<tr><td>${safe(m.created_at.slice(0, 16).replace('T', ' '))}</td><td>${safe(m.sku)}</td><td>${safe(m.warehouse)}</td><td>${safe(m.kind)}</td><td>${m.on_hand_delta > 0 ? '+' : ''}${m.on_hand_delta}</td><td>${m.reserved_delta > 0 ? '+' : ''}${m.reserved_delta}</td></tr>`));
       byId('suppliers-table').innerHTML = table(['Supplier', 'Contact'], supplierRows.map(s =>
         `<tr><td><strong>${safe(s.name)}</strong></td><td>${safe(s.email || 'No contact provided')}</td></tr>`));
+      byId('purchases-table').innerHTML = table(['Reference', 'Supplier', 'Warehouse', 'Items', 'Expected', 'Status', 'Action'], purchaseRows.map(po =>
+        `<tr><td><strong>${safe(po.reference)}</strong></td><td>${safe(po.supplier)}</td><td>${safe(po.warehouse)}</td><td>${po.items.map(item =>
+           `${safe(item.sku)}: ${item.received}/${item.ordered} received${!demo && item.outstanding > 0 && ['ordered', 'partial'].includes(po.status)
+             ? ` <button class="link-button" data-purchase-receive="${po.id}" data-line="${item.line_id}" data-outstanding="${item.outstanding}">Receive</button>` : ''}`).join('<br>')}</td><td>${safe(po.expected_date || '—')}</td><td>${rowStatus(po.status)}</td><td>${!demo && ['ordered', 'partial'].includes(po.status)
+          ? `<button class="link-button muted-link" data-purchase-cancel="${po.id}">Cancel</button>` : '—'}</td></tr>`));
+      document.querySelectorAll('.supplier-select').forEach(select => {
+        const old = select.value;
+        select.innerHTML = supplierRows.map(s => `<option value="${s.id}">${safe(s.name)}</option>`).join('');
+        if (supplierRows.some(s => String(s.id) === old)) select.value = old;
+      });
       document.querySelectorAll('.warehouse-select').forEach(select => {
         const old = select.value;
         select.innerHTML = warehouses.map(w => `<option value="${w.id}">${safe(w.name)}</option>`).join('');
@@ -94,6 +104,10 @@
       quantity: Number(d.get('quantity')), note: d.get('note')}));
     submit('warehouse-form', '/warehouses', d => ({name: d.get('name'), city: d.get('city')}));
     submit('supplier-form', '/suppliers', d => ({name: d.get('name'), email: d.get('email')}));
+    submit('purchase-form', '/purchase-orders', d => ({reference: d.get('reference'),
+      supplier_id: Number(d.get('supplier_id')), warehouse_id: Number(d.get('warehouse_id')),
+      expected_date: d.get('expected_date') || null,
+      items: [{sku: d.get('sku'), quantity: Number(d.get('quantity'))}]}));
     submit('order-form', '/orders', d => ({warehouse_id: Number(d.get('warehouse_id')),
       customer_name: d.get('customer_name'), due_date: d.get('due_date'),
       items: [{sku: d.get('sku'), quantity: Number(d.get('quantity'))}]}));
@@ -107,6 +121,30 @@
         const result = await api('/import/products', {method: 'POST', body: new FormData(importForm)});
         notice(`Imported ${result.created} products (${result.skipped} existing or repeated SKUs skipped).`);
         importForm.reset(); await load();
+      } catch (error) { notice(error.message, true); }
+    });
+    byId('purchases-table').addEventListener('click', async event => {
+      const receive = event.target.closest('[data-purchase-receive]');
+      const cancel = event.target.closest('[data-purchase-cancel]');
+      if (!receive && !cancel) return;
+      try {
+        if (receive) {
+          const max = Number(receive.dataset.outstanding);
+          const answer = window.prompt(`How many units arrived? Outstanding: ${max}`, String(max));
+          if (answer === null) return;
+          const quantity = Number(answer);
+          if (!Number.isInteger(quantity) || quantity < 1 || quantity > max) {
+            return notice(`Enter a whole number between 1 and ${max}.`, true);
+          }
+          await api(`/purchase-orders/${receive.dataset.purchaseReceive}/receive`, {
+            method: 'POST', body: JSON.stringify({line_id: Number(receive.dataset.line), quantity})});
+          notice('Receipt saved and stock history updated.');
+        } else {
+          if (!window.confirm(`Cancel outstanding units on purchase order #${cancel.dataset.purchaseCancel}?`)) return;
+          await api(`/purchase-orders/${cancel.dataset.purchaseCancel}/cancel`, {method: 'POST'});
+          notice('Purchase order cancelled. Previously received stock remains in inventory.');
+        }
+        await load();
       } catch (error) { notice(error.message, true); }
     });
     byId('orders-table').addEventListener('click', async event => {

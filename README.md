@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688)](https://fastapi.tiangolo.com/) [![Status](https://img.shields.io/badge/status-prototype-CC8736)](#prototype--security-notice)
 
-Elveriq started as a Python inventory and warehouse-ranking exercise. This repository now also includes a responsive web dashboard and a database-backed warehouse workflow. The original learning modules and their tests remain in place.
+Elveriq evolved from an earlier Python inventory and warehouse-ranking prototype called DispatchForge. This repository now also includes a responsive web dashboard and a database-backed warehouse workflow. The original learning modules and their tests remain in place.
 
 > **Product status:** Prototype and fictional demo data. Not an operating logistics business and **not yet safe for business-critical production inventory**. There is no live deployment URL included in this archive.
 
@@ -17,6 +17,7 @@ Elveriq started as a Python inventory and warehouse-ranking exercise. This repos
 - **Scheduled customer orders:** reserve products for a future date, fulfill or cancel orders, and automatically update stock.
 - **Stock ledger:** audit when stock enters, is reserved, ships, or is released.
 - **Supplier directory, low-stock alerts, and overview metrics.**
+- **Purchase orders and supplier receiving:** create an inbound order, record partial or complete receipts, track outstanding quantities, and preserve stock-movement history.
 
 The frontend is HTML/CSS/JavaScript and can be adapted into a mobile app later using the same backend APIs.
 
@@ -48,7 +49,7 @@ To try the interactive workflows: select **Create workspace**, sign up, and **co
 python -m pytest -q
 ```
 
-Expected at the time of packaging: **46 passing tests** (29 original tests + 17 web/inventory/security tests).
+Expected at the time of packaging: **56 passing tests** (29 original tests, 17 warehouse-cloud tests, and 10 new purchasing tests).
 
 ### CSV product import
 
@@ -61,6 +62,12 @@ SKU-101,Packaging Tape,499,10,roll
 ```
 
 Existing SKU rows are skipped. Import creates catalog records, **not stock on hand**. Use **Receive stock** to record the physical goods. The import is limited to 1 MB / 1,000 rows.
+
+## Purchasing workflow
+
+In your private workspace: open **Suppliers**, create a supplier; open **Inventory**, add a SKU; then open **Purchasing & receiving**. Create a PO against a destination warehouse, and use **Receive** to record an actual arrival. Every receipt increases stock and adds a movement record. A partially received PO remains open; cancelling it only cancels the unreceived portion. Public demo mode is read-only and displays a fictional PO. The API supports multiple lines per PO; the initial website form supports one line at a time.
+
+See [PURCHASING.md](PURCHASING.md) for business workflow, API examples, and limitations.
 
 ## Technology
 

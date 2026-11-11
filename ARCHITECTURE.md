@@ -72,3 +72,13 @@ A warehouse may already use QuickBooks, Shopify, a POS, or spreadsheets. Only co
 4. Add reliable backups/restores, background jobs, event/outbox processing, and monitoring.
 
 The original `inventory.py` and ranking/distance modules remain as **separate teaching/simulation modules**. This new SaaS persistence layer does not overwrite them; mapping the two systems is future work.
+
+
+## Inbound purchasing domain
+
+`PurchaseOrder` belongs to a tenant, warehouse and supplier; each `PurchaseOrderLine`
+references a product and tracks ordered versus received units. Receipt operations
+atomically update the line's received quantity and the stock ledger in a single
+database transaction. The list endpoint is tenant-scoped and the read-only demo
+uses fictional orders. This MVP does not send purchase orders to suppliers or
+maintain invoice/payment state.

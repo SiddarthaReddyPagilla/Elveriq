@@ -8,6 +8,7 @@
       <button class="side-link active" data-section="overview">◫ &nbsp; Overview</button>
       <button class="side-link" data-section="inventory">▣ &nbsp; Inventory</button>
       <button class="side-link" data-section="orders">◷ &nbsp; Scheduled orders</button>
+      <button class="side-link" data-section="purchasing">♧ &nbsp; Purchasing &amp; receiving</button>
       <button class="side-link" data-section="activity">⇥ &nbsp; Stock movements</button>
       <button class="side-link" data-section="suppliers">♧ &nbsp; Suppliers</button>
     </nav>
@@ -44,6 +45,25 @@
     <section class="section-view hidden" data-view="orders"><div class="section-title"><div><h2>Scheduled orders</h2><p>Reserve products today for future fulfillment without overselling.</p></div></div>
       {% if not is_demo %}<form class="panel order-form" id="order-form"><h3>Create a customer order</h3><div class="order-fields"><label>Customer / reference<input name="customer_name" required placeholder="Retail Customer Co."></label><label>Fulfillment date<input name="due_date" id="due-date" type="date" required></label><label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label><label>Product<select name="sku" class="sku-select" required></select></label><label>Quantity<input name="quantity" type="number" min="1" required value="1"></label></div><p class="small muted">Start with one SKU per order. The backend already supports multiple line items.</p><button class="button" type="submit">Reserve order</button></form>{% endif %}
       <div class="panel"><div class="panel-title"><h3>Latest customer orders</h3></div><div id="orders-table" class="table-wrap"></div></div>
+    </section>
+    <section class="section-view hidden" data-view="purchasing">
+      <div class="section-title"><div><h2>Purchasing &amp; receiving</h2><p>Order stock from a supplier, record partial receipts, and track quantities still outstanding.</p></div></div>
+      {% if not is_demo %}
+      <form class="panel order-form" id="purchase-form">
+        <h3>Create a purchase order</h3>
+        <div class="order-fields">
+          <label>PO reference<input name="reference" placeholder="PO-1001" maxlength="100" required></label>
+          <label>Supplier<select name="supplier_id" class="supplier-select" required></select></label>
+          <label>Destination warehouse<select name="warehouse_id" class="warehouse-select" required></select></label>
+          <label>Product<select name="sku" class="sku-select" required></select></label>
+          <label>Quantity<input name="quantity" type="number" min="1" max="1000000" required value="10"></label>
+          <label>Expected arrival (optional)<input name="expected_date" type="date"></label>
+        </div>
+        <p class="small muted">Create a supplier in the Suppliers tab first. The interface starts with one product per purchase order; the API supports multiple items.</p>
+        <button class="button" type="submit">Create purchase order</button>
+      </form>
+      {% endif %}
+      <div class="panel"><div class="panel-title"><h3>Purchase orders</h3></div><div id="purchases-table" class="table-wrap"></div></div>
     </section>
     <section class="section-view hidden" data-view="activity"><div class="section-title"><div><h2>Stock movements</h2><p>Receiving, reservations, fulfillment, cancellations, and stock adjustments.</p></div></div><div class="panel"><div id="movements-table" class="table-wrap"></div></div></section>
     <section class="section-view hidden" data-view="suppliers"><div class="section-title"><div><h2>Suppliers</h2><p>Track the businesses that supply your stock.</p></div></div>{% if not is_demo %}<form id="supplier-form" class="panel mini-form supplier-add owner-only"><h3>Add a supplier</h3><label>Company name<input name="name" required placeholder="Supplier name"></label><label>Contact email (optional)<input type="email" name="email" placeholder="supplier@example.com"></label><button class="button" type="submit">Save supplier</button></form>{% endif %}<div class="panel"><div id="suppliers-table" class="table-wrap"></div></div></section>

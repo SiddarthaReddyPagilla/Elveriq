@@ -38,3 +38,12 @@ Elveriq is now a **website-first warehouse management and inventory SaaS concept
 ## Engineering note
 
 The original in-memory DFW ranking modules remain separate from the new database-backed tenant inventory system. That is intentional: we are not pretending the old example dictionary is a production stock source.
+
+
+## Elveriq warehouse purchasing milestone
+
+- Rebranded website and public product documentation to Elveriq.
+- Added tenant-scoped purchase orders, line items, receiving and cancellations.
+- Partial receipt and an audit ledger are linked to existing inventory.
+- Added automated CI and purchase-order regression tests; local target: 56 passing tests.
+- Not publicly deployed and not yet production-ready.

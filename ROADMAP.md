@@ -43,3 +43,11 @@ Develop a mobile-first client, PWA or native mobile app using the **same backend
 ## Commercial hypothesis
 
 Start with independent distributors and warehouse businesses that operate one to three locations and suffer from spreadsheet-heavy stock handling. Test whether the platform reduces stock reconciliation time or order handling errors. Subscription prices and value propositions remain hypotheses until customer interviews and pilot results.
+
+
+## Elveriq extension — supplier purchasing and receiving
+
+- Implemented purchase orders and line-level quantities with partial receiving.
+- Receipts add warehouse inventory and an auditable movement.
+- Cross-business authorization checks, purchase status transitions and over-receipt checks covered by tests.
+- Next: PostgreSQL migrations, invite-only employee management, order picking workflow, UI support for multiple purchase lines, supplier integration, mobile barcode scanning.
