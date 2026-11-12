@@ -201,3 +201,17 @@ class ReturnReceipt(Base):
     reason: Mapped[str] = mapped_column(String(250), default="", nullable=False)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class StaffInvitation(Base):
+    """Expiring, single-use invitation; only a token hash is persisted."""
+    __tablename__ = "staff_invitations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
