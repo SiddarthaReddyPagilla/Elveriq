@@ -241,6 +241,22 @@ def pick_list(order_id: int, request: Request, session: Session = Depends(get_db
     return order_pick_list(session, read_access(request, session, False), order_id)
 
 
+@router.get("/orders/{order_id}/pick-list.csv")
+def export_pick_list(order_id: int, request: Request,
+                     session: Session = Depends(get_db)):
+    details = order_pick_list(session, read_access(request, session, False), order_id)
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(["order_id", "customer", "warehouse", "due_date", "sku", "name", "unit", "quantity"])
+    for item in details["items"]:
+        writer.writerow([csv_cell(details["order_id"]), csv_cell(details["customer"]),
+                         csv_cell(details["warehouse"]), csv_cell(details["due_date"]),
+                         csv_cell(item["sku"]), csv_cell(item["name"]),
+                         csv_cell(item["unit"]), item["quantity"]])
+    return Response(stream.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="elveriq-pick-{order_id}.csv"'})
+
+
 @router.post("/orders", status_code=201)
 def add_order(payload: OrderIn, request: Request,
               x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):

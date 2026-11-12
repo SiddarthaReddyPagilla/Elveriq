@@ -34,3 +34,18 @@ def test_pick_list_requires_login_and_tenant_membership(client):
     assert client.get('/api/orders/123/pick-list').status_code==401
     h=register(client)
     assert client.get('/api/orders/123/pick-list').status_code==404
+
+
+def test_csv_pick_list_download_escapes_formula_like_names(client):
+    h=register(client)
+    warehouse=add_stock(client,h,'PICK-1',10)
+    order=client.post('/api/orders',headers=h,json={
+        'warehouse_id':warehouse,'customer_name':'=MALICIOUS()',
+        'due_date':(date.today()+timedelta(days=3)).isoformat(),
+        'items':[{'sku':'PICK-1','quantity':3}]}).json()['id']
+    response=client.get(f'/api/orders/{order}/pick-list.csv')
+    assert response.status_code==200
+    assert 'attachment;' in response.headers['content-disposition']
+    assert "'=MALICIOUS" in response.text
+    assert 'PICK-1' in response.text
+    assert client.get('/api/orders/999/pick-list.csv').status_code==404
