@@ -23,6 +23,7 @@ from .replenishment_service import reorder_recommendations
 from .cycle_count_service import start_count, post_count, cancel_count, list_counts
 from .returns_service import restock_return, list_returns
 from .staff_service import (create_invitation, accept_invitation, staff_members, change_staff_role)
+from .audit_service import audit_stock
 
 router = APIRouter(prefix="/api")
 
@@ -356,6 +357,16 @@ def export_replenishment(request: Request, demo: bool = False,
         writer.writerow([csv_cell(row[col]) for col in columns])
     return Response(stream.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="elveriq-replenishment.csv"'})
+
+
+@router.get("/audit")
+def audit(request: Request, demo: bool = False, kind: str | None = None,
+          sku: str | None = None, warehouse_id: int | None = None,
+          before_id: int | None = Query(default=None, ge=1),
+          limit: int = Query(default=50, ge=1, le=200),
+          session: Session = Depends(get_db)):
+    return audit_stock(session, read_access(request, session, demo), kind=kind,
+        sku=sku, warehouse_id=warehouse_id, before_id=before_id, limit=limit)
 
 
 @router.get("/movements")
