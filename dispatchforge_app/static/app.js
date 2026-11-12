@@ -36,9 +36,11 @@
   }
   async function load() {
     try {
-      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows] = await Promise.all([
+      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows, transfers, counts, returns, replenishment, team] = await Promise.all([
         api('/overview'), api('/inventory'), api('/products'), api('/warehouses'),
-        api('/orders'), api('/movements'), api('/suppliers'), api('/purchase-orders')
+        api('/orders'), api('/movements'), api('/suppliers'), api('/purchase-orders'),
+        api('/transfers'), api('/cycle-counts'), api('/returns'), api('/replenishment'),
+        role === 'owner' && !demo ? api('/staff') : Promise.resolve([])
       ]);
       inventory = stock; products = productRows; warehouses = warehouseRows; orders = orderRows; purchases = purchaseRows;
       const ids = {'stat-products': overview.products, 'stat-warehouses': overview.warehouses,
@@ -54,7 +56,7 @@
       byId('inventory-table').innerHTML = table(['Product / SKU', 'Location', 'On hand', 'Reserved', 'Available', 'Reorder at'], stock.map(x =>
         `<tr><td><strong>${safe(x.name)}</strong><small>${safe(x.sku)} · ${money(x.price_cents)}</small></td><td>${safe(x.warehouse)}</td><td>${x.on_hand}</td><td>${x.reserved}</td><td><strong class="${x.low_stock ? 'low-text' : ''}">${x.available}</strong></td><td>${x.reorder_point}</td></tr>`));
       byId('orders-table').innerHTML = table(['Order', 'Customer', 'Items', 'Due', 'Status', ''], orderRows.map(o =>
-        `<tr><td>#${o.id}</td><td><strong>${safe(o.customer_name)}</strong></td><td>${o.items.map(i => `${safe(i.sku)} × ${i.quantity}`).join('<br>')}</td><td>${safe(o.due_date)}</td><td>${rowStatus(o.status)}</td><td>${!demo && o.status === 'reserved' ? `<button class="link-button" data-order="${o.id}" data-action="fulfill">Fulfill</button> <button class="link-button muted-link" data-order="${o.id}" data-action="cancel">Cancel</button>` : '—'}</td></tr>`));
+        `<tr><td>#${o.id}</td><td><strong>${safe(o.customer_name)}</strong></td><td>${o.items.map(i => `${safe(i.sku)} × ${i.quantity}`).join('<br>')}</td><td>${safe(o.due_date)}</td><td>${rowStatus(o.status)}</td><td>${!demo ? `<a class="link-button" href="/api/orders/${o.id}/pick-list.csv">Pick list CSV</a> ` : ''}${!demo && o.status === 'reserved' ? `<button class="link-button" data-order="${o.id}" data-action="fulfill">Fulfill</button> <button class="link-button muted-link" data-order="${o.id}" data-action="cancel">Cancel</button>` : '—'}</td></tr>`));
       byId('movements-table').innerHTML = table(['Time', 'Product', 'Location', 'Action', 'On hand Δ', 'Reserved Δ'], movementRows.map(m =>
         `<tr><td>${safe(m.created_at.slice(0, 16).replace('T', ' '))}</td><td>${safe(m.sku)}</td><td>${safe(m.warehouse)}</td><td>${safe(m.kind)}</td><td>${m.on_hand_delta > 0 ? '+' : ''}${m.on_hand_delta}</td><td>${m.reserved_delta > 0 ? '+' : ''}${m.reserved_delta}</td></tr>`));
       byId('suppliers-table').innerHTML = table(['Supplier', 'Contact'], supplierRows.map(s =>
@@ -64,6 +66,20 @@
            `${safe(item.sku)}: ${item.received}/${item.ordered} received${!demo && item.outstanding > 0 && ['ordered', 'partial'].includes(po.status)
              ? ` <button class="link-button" data-purchase-receive="${po.id}" data-line="${item.line_id}" data-outstanding="${item.outstanding}">Receive</button>` : ''}`).join('<br>')}</td><td>${safe(po.expected_date || '—')}</td><td>${rowStatus(po.status)}</td><td>${!demo && ['ordered', 'partial'].includes(po.status)
           ? `<button class="link-button muted-link" data-purchase-cancel="${po.id}">Cancel</button>` : '—'}</td></tr>`));
+      byId('transfers-table').innerHTML = table(['SKU', 'From', 'To', 'Units', 'When'], transfers.map(t =>
+        `<tr><td>${safe(t.sku)}</td><td>${safe(t.source)}</td><td>${safe(t.destination)}</td><td>${t.quantity}</td><td>${safe(t.created_at.slice(0, 16))}</td></tr>`));
+      byId('counts-table').innerHTML = table(['SKU', 'Warehouse', 'Expected', 'Counted', 'Status', 'Action'], counts.map(c =>
+        `<tr><td>${safe(c.sku)}</td><td>${safe(c.warehouse)}</td><td>${c.expected_on_hand}</td><td>${c.counted_on_hand === null ? '—' : c.counted_on_hand}</td><td>${rowStatus(c.status)}</td><td>${!demo && role === 'owner' && c.status === 'open' ? `<button class="link-button" data-count-post="${c.id}">Reconcile</button> <button class="link-button muted-link" data-count-cancel="${c.id}">Cancel</button>` : '—'}</td></tr>`));
+      byId('returns-table').innerHTML = table(['Reference', 'Order', 'SKU', 'Units', 'When'], returns.map(r =>
+        `<tr><td>${safe(r.reference)}</td><td>#${r.order_id}</td><td>${safe(r.sku)}</td><td>${r.quantity}</td><td>${safe(r.created_at.slice(0, 16))}</td></tr>`));
+      byId('replenishment-table').innerHTML = table(['Product', 'Location', 'Available', 'Open PO units', 'Suggested'], replenishment.map(r =>
+        `<tr><td><strong>${safe(r.product)}</strong><small>${safe(r.sku)}</small></td><td>${safe(r.warehouse)}</td><td>${r.available}</td><td>${r.incoming}</td><td><strong>${r.suggested_quantity}</strong></td></tr>`));
+      if (byId('staff-table')) byId('staff-table').innerHTML = table(['Email', 'Role', 'Action'], team.map(u =>
+        `<tr><td>${safe(u.email)}</td><td>${rowStatus(u.role)}</td><td>${u.role === 'owner' ? '—' : `<button class="link-button" data-staff-id="${u.id}" data-role="${safe(u.role)}">Change role</button>`}</td></tr>`));
+      document.querySelectorAll('.fulfilled-order-select').forEach(select => {
+        select.innerHTML = orderRows.filter(o => o.status === 'fulfilled').map(o =>
+          `<option value="${o.id}">#${o.id} · ${safe(o.customer_name)}</option>`).join('');
+      });
       document.querySelectorAll('.supplier-select').forEach(select => {
         const old = select.value;
         select.innerHTML = supplierRows.map(s => `<option value="${s.id}">${safe(s.name)}</option>`).join('');
@@ -108,6 +124,15 @@
       supplier_id: Number(d.get('supplier_id')), warehouse_id: Number(d.get('warehouse_id')),
       expected_date: d.get('expected_date') || null,
       items: [{sku: d.get('sku'), quantity: Number(d.get('quantity'))}]}));
+    submit('transfer-form', '/transfers', d => ({
+      source_warehouse_id: Number(d.get('source_warehouse_id')),
+      destination_warehouse_id: Number(d.get('destination_warehouse_id')),
+      sku: d.get('sku'), quantity: Number(d.get('quantity')), note: d.get('note')}));
+    submit('count-form', '/cycle-counts', d => ({warehouse_id: Number(d.get('warehouse_id')),
+      sku: d.get('sku'), note: d.get('note')}));
+    submit('return-form', '/returns', d => ({order_id: Number(d.get('order_id')),
+      sku: d.get('sku'), quantity: Number(d.get('quantity')),
+      reference: d.get('reference'), reason: d.get('reason')}));
     submit('order-form', '/orders', d => ({warehouse_id: Number(d.get('warehouse_id')),
       customer_name: d.get('customer_name'), due_date: d.get('due_date'),
       items: [{sku: d.get('sku'), quantity: Number(d.get('quantity'))}]}));
@@ -122,6 +147,50 @@
         notice(`Imported ${result.created} products (${result.skipped} existing or repeated SKUs skipped).`);
         importForm.reset(); await load();
       } catch (error) { notice(error.message, true); }
+    });
+    byId('counts-table').addEventListener('click', async event => {
+      const post = event.target.closest('[data-count-post]');
+      const cancel = event.target.closest('[data-count-cancel]');
+      if (!post && !cancel) return;
+      try {
+        if (post) {
+          const answer = window.prompt('Enter the physically counted units (whole number):');
+          if (answer === null) return;
+          const quantity = Number(answer);
+          if (!Number.isInteger(quantity) || quantity < 0) return notice('Count must be a nonnegative whole number.', true);
+          if (!window.confirm(`Post cycle count #${post.dataset.countPost}? This adjusts inventory.`)) return;
+          await api(`/cycle-counts/${post.dataset.countPost}/post`, {method:'POST',
+            body:JSON.stringify({counted_on_hand:quantity})});
+        } else {
+          if (!window.confirm('Cancel this physical count?')) return;
+          await api(`/cycle-counts/${cancel.dataset.countCancel}/cancel`, {method:'POST'});
+        }
+        notice('Cycle count updated.'); await load();
+      } catch (error) { notice(error.message, true); }
+    });
+    const inviteForm = byId('invite-form');
+    if (inviteForm) inviteForm.addEventListener('submit', async event => {
+      event.preventDefault(); const data = new FormData(inviteForm);
+      try {
+        const invited = await api('/staff/invitations', {method:'POST', body:JSON.stringify({
+          email:data.get('email'), role:data.get('role')})});
+        const workspace = document.querySelector('.slug-code')?.textContent.trim() || '';
+        const link = `${location.origin}/join#token=${encodeURIComponent(invited.token)}&workspace=${encodeURIComponent(workspace)}`;
+        byId('invite-output').textContent = `Share securely (shown once): ${link}`;
+        notice('Invitation created. Copy the one-time link below the invitation form.');
+        inviteForm.reset(); await load();
+      } catch(error) { notice(error.message,true); }
+    });
+    const staffTable = byId('staff-table');
+    if (staffTable) staffTable.addEventListener('click', async event => {
+      const btn=event.target.closest('[data-staff-id]'); if (!btn) return;
+      const desired=window.prompt('New role: manager, staff, or disabled',btn.dataset.role);
+      if (desired === null) return;
+      if (!['manager','staff','disabled'].includes(desired)) return notice('Choose manager, staff, or disabled.',true);
+      if (!window.confirm(`Set employee #${btn.dataset.staffId} to ${desired}?`)) return;
+      try { await api(`/staff/${btn.dataset.staffId}/role`,{method:'PATCH',
+        body:JSON.stringify({role:desired})}); notice('Team member updated.'); await load(); }
+      catch(error) { notice(error.message,true); }
     });
     byId('purchases-table').addEventListener('click', async event => {
       const receive = event.target.closest('[data-purchase-receive]');

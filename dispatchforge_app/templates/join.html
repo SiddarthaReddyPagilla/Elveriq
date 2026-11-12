@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-shell page-width"><div class="auth-card">
+  <span class="eyebrow">ELVERIQ TEAM INVITATION</span>
+  <h1>Join a warehouse workspace</h1>
+  <p>Use the private invitation link shared by your warehouse owner to create your employee password.</p>
+  <form id="join-form" class="mini-form">
+    <label>Workspace ID<input id="join-workspace" readonly autocomplete="off"></label>
+    <label>Your password<input type="password" name="password" autocomplete="new-password" minlength="10" required></label>
+    <button class="button" type="submit">Accept invitation</button>
+  </form><p id="join-message" role="status" aria-live="polite"></p>
+  <p class="small muted">Invitations expire after 48 hours and can be used only once.</p>
+</div></div>
+<script src="/static/join.js" defer></script>
+{% endblock %}

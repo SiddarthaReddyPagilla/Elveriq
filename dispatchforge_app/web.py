@@ -86,6 +86,10 @@ def create_app(db: Database | None = None, settings: Settings | None = None) -> 
                        {"title": "Create Workspace", "csrf": csrf_token(request),
                         "mode": "register", "error": exc.message}, status_code=exc.status)
 
+    @app.get("/join", response_class=HTMLResponse)
+    def join_workspace(request: Request):
+        return render(request, "join.html", title="Join Workspace | Elveriq")
+
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):
         return render(request, "auth.html", title="Sign In | Elveriq",

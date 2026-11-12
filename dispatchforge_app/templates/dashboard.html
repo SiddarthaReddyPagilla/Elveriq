@@ -9,8 +9,13 @@
       <button class="side-link" data-section="inventory">▣ &nbsp; Inventory</button>
       <button class="side-link" data-section="orders">◷ &nbsp; Scheduled orders</button>
       <button class="side-link" data-section="purchasing">♧ &nbsp; Purchasing &amp; receiving</button>
+      <button class="side-link" data-section="transfers">↔ &nbsp; Transfers</button>
+      <button class="side-link" data-section="counts">✓ &nbsp; Cycle counts</button>
+      <button class="side-link" data-section="returns">↶ &nbsp; Returns</button>
+      <button class="side-link" data-section="replenishment">↥ &nbsp; Replenishment</button>
       <button class="side-link" data-section="activity">⇥ &nbsp; Stock movements</button>
       <button class="side-link" data-section="suppliers">♧ &nbsp; Suppliers</button>
+      {% if not is_demo and role == 'owner' %}<button class="side-link" data-section="team">♙ &nbsp; Team</button>{% endif %}
     </nav>
     {% if not is_demo %}<div class="sidebar-bottom"><span class="eyebrow">WORKSPACE ID</span><code class="slug-code">{{ slug }}</code><small>Save this ID to sign in again.</small>
       <form action="/logout" method="post"><input name="csrf" type="hidden" value="{{ csrf }}"><button type="submit" class="text-button">Sign out ↗</button></form></div>{% endif %}
@@ -65,6 +70,30 @@
       {% endif %}
       <div class="panel"><div class="panel-title"><h3>Purchase orders</h3></div><div id="purchases-table" class="table-wrap"></div></div>
     </section>
+    <section class="section-view hidden" data-view="transfers">
+      <div class="section-title"><div><h2>Warehouse transfers</h2><p>Move available stock between locations and keep a two-sided audit history.</p></div></div>
+      {% if not is_demo %}<form id="transfer-form" class="panel order-form"><h3>Move stock</h3><div class="order-fields"><label>From warehouse<select name="source_warehouse_id" class="warehouse-select" required></select></label><label>To warehouse<select name="destination_warehouse_id" class="warehouse-select" required></select></label><label>Product<select name="sku" class="sku-select" required></select></label><label>Units<input type="number" name="quantity" min="1" required value="1"></label><label>Reference note<input name="note" maxlength="250" placeholder="Transfer to second location"></label></div><button class="button" type="submit">Transfer available stock</button></form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>Recent transfers</h3></div><div id="transfers-table" class="table-wrap"></div></div>
+    </section>
+    <section class="section-view hidden" data-view="counts">
+      <div class="section-title"><div><h2>Physical cycle counts</h2><p>Count products on the shelf, then reconcile against the recorded balance.</p></div></div>
+      {% if not is_demo %}<form id="count-form" class="panel order-form"><h3>Start a stock count</h3><div class="order-fields"><label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label><label>Product<select name="sku" class="sku-select" required></select></label><label>Count note<input name="note" maxlength="250" placeholder="Weekly audit"></label></div><button class="button" type="submit">Start count</button></form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>Count register</h3></div><div id="counts-table" class="table-wrap"></div></div>
+    </section>
+    <section class="section-view hidden" data-view="returns">
+      <div class="section-title"><div><h2>Customer returns</h2><p>After receiving and inspecting returned goods, restock units from completed orders.</p></div></div>
+      {% if not is_demo %}<form id="return-form" class="panel order-form"><h3>Restock a return</h3><div class="order-fields"><label>Fulfilled order<select name="order_id" class="fulfilled-order-select" required></select></label><label>Product SKU<select name="sku" class="sku-select" required></select></label><label>Return units<input type="number" name="quantity" min="1" required value="1"></label><label>Unique return reference<input name="reference" maxlength="100" required placeholder="RTN-1024"></label><label>Inspection note<input name="reason" maxlength="250" placeholder="Unopened and suitable for restock"></label></div><button class="button" type="submit">Confirm physical receipt</button></form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>Return receipts</h3></div><div id="returns-table" class="table-wrap"></div></div>
+    </section>
+    <section class="section-view hidden" data-view="replenishment">
+      <div class="section-title"><div><h2>Replenishment planner</h2><p>Rule-based suggestions consider available stock and quantities already ordered from suppliers. No purchases are placed automatically.</p></div><a class="button button-outline button-small" href="/api/export/replenishment.csv{{ '?demo=true' if is_demo else '' }}">Download reorder CSV</a></div>
+      <div class="panel"><div class="panel-title"><h3>Inventory needing replenishment</h3></div><div id="replenishment-table" class="table-wrap"></div></div>
+    </section>
+    {% if not is_demo and role == 'owner' %}<section class="section-view hidden" data-view="team">
+      <div class="section-title"><div><h2>Team access</h2><p>Invite managers and warehouse staff with an expiring, one-use link.</p></div></div>
+      <form id="invite-form" class="panel order-form"><h3>Invite an employee</h3><div class="order-fields"><label>Email<input type="email" name="email" required placeholder="employee@example.com"></label><label>Role<select name="role"><option value="staff">Warehouse staff</option><option value="manager">Manager</option></select></label></div><button class="button" type="submit">Create invitation</button><p class="small muted">Invitations are not emailed automatically. Share the one-time link securely.</p><p id="invite-output" class="small" aria-live="polite"></p></form>
+      <div class="panel"><div class="panel-title"><h3>Workspace members</h3></div><div id="staff-table" class="table-wrap"></div></div>
+    </section>{% endif %}
     <section class="section-view hidden" data-view="activity"><div class="section-title"><div><h2>Stock movements</h2><p>Receiving, reservations, fulfillment, cancellations, and stock adjustments.</p></div></div><div class="panel"><div id="movements-table" class="table-wrap"></div></div></section>
     <section class="section-view hidden" data-view="suppliers"><div class="section-title"><div><h2>Suppliers</h2><p>Track the businesses that supply your stock.</p></div></div>{% if not is_demo %}<form id="supplier-form" class="panel mini-form supplier-add owner-only"><h3>Add a supplier</h3><label>Company name<input name="name" required placeholder="Supplier name"></label><label>Contact email (optional)<input type="email" name="email" placeholder="supplier@example.com"></label><button class="button" type="submit">Save supplier</button></form>{% endif %}<div class="panel"><div id="suppliers-table" class="table-wrap"></div></div></section>
   </div>
