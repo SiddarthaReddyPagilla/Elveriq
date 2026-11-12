@@ -13,6 +13,7 @@
       <button class="side-link" data-section="counts">✓ &nbsp; Cycle counts</button>
       <button class="side-link" data-section="returns">↶ &nbsp; Returns</button>
       <button class="side-link" data-section="replenishment">↥ &nbsp; Replenishment</button>
+      <button class="side-link" data-section="planning">◷ &nbsp; Operations planner</button>
       <button class="side-link" data-section="activity">⇥ &nbsp; Stock movements</button>
       <button class="side-link" data-section="suppliers">♧ &nbsp; Suppliers</button>
       {% if not is_demo and role == 'owner' %}<button class="side-link" data-section="team">♙ &nbsp; Team</button>{% endif %}
@@ -94,6 +95,11 @@
       <form id="invite-form" class="panel order-form"><h3>Invite an employee</h3><div class="order-fields"><label>Email<input type="email" name="email" required placeholder="employee@example.com"></label><label>Role<select name="role"><option value="staff">Warehouse staff</option><option value="manager">Manager</option></select></label></div><button class="button" type="submit">Create invitation</button><p class="small muted">Invitations are not emailed automatically. Share the one-time link securely.</p><p id="invite-output" class="small" aria-live="polite"></p></form>
       <div class="panel"><div class="panel-title"><h3>Workspace members</h3></div><div id="staff-table" class="table-wrap"></div></div>
     </section>{% endif %}
+    <section class="section-view hidden" data-view="planning">
+      <div class="section-title"><div><h2>Operations planner</h2><p>Upcoming reserved orders and incoming supplier deliveries over the next seven days.</p></div></div>
+      <div class="two-column"><div class="panel"><h3>Customer fulfillment queue</h3><div id="outgoing-queue" class="table-wrap"></div></div>
+      <div class="panel"><h3>Supplier delivery queue</h3><div id="incoming-queue" class="table-wrap"></div></div></div>
+    </section>
     <section class="section-view hidden" data-view="activity"><div class="section-title"><div><h2>Stock movements</h2><p>Receiving, reservations, fulfillment, cancellations, and stock adjustments.</p></div></div><div class="panel"><div id="movements-table" class="table-wrap"></div></div></section>
     <section class="section-view hidden" data-view="suppliers"><div class="section-title"><div><h2>Suppliers</h2><p>Track the businesses that supply your stock.</p></div></div>{% if not is_demo %}<form id="supplier-form" class="panel mini-form supplier-add owner-only"><h3>Add a supplier</h3><label>Company name<input name="name" required placeholder="Supplier name"></label><label>Contact email (optional)<input type="email" name="email" placeholder="supplier@example.com"></label><button class="button" type="submit">Save supplier</button></form>{% endif %}<div class="panel"><div id="suppliers-table" class="table-wrap"></div></div></section>
   </div>

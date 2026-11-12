@@ -118,3 +118,10 @@ The earlier `inventory.py`, `warehouse_selection.py`, `warehouse_ranking.py`, `d
 No email verification, password reset, invite flow, account recovery, data retention policy, database migrations, backups, or rate limiting yet. The frontend has only a one-line order form (the API supports multiple items). Do not invite real warehouses to depend on this service until these areas are addressed and the application receives a professional security review.
 
 Built as an independent educational project, with the goal of validating real warehouse workflows before pursuing a commercial product.
+
+
+### Next warehouse operations release
+
+See [RELEASE-16-MILESTONES.md](RELEASE-16-MILESTONES.md) for transfers, physical counts,
+returns, staff access, replenishment, picking, and operations planning.
+All features are software simulations until a business pilot is completed.

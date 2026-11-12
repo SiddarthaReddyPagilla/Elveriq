@@ -36,11 +36,12 @@
   }
   async function load() {
     try {
-      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows, transfers, counts, returns, replenishment, team] = await Promise.all([
+      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows, transfers, counts, returns, replenishment, team, planning] = await Promise.all([
         api('/overview'), api('/inventory'), api('/products'), api('/warehouses'),
         api('/orders'), api('/movements'), api('/suppliers'), api('/purchase-orders'),
         api('/transfers'), api('/cycle-counts'), api('/returns'), api('/replenishment'),
-        role === 'owner' && !demo ? api('/staff') : Promise.resolve([])
+        role === 'owner' && !demo ? api('/staff') : Promise.resolve([]),
+        api('/operations/queue')
       ]);
       inventory = stock; products = productRows; warehouses = warehouseRows; orders = orderRows; purchases = purchaseRows;
       const ids = {'stat-products': overview.products, 'stat-warehouses': overview.warehouses,
@@ -66,6 +67,10 @@
            `${safe(item.sku)}: ${item.received}/${item.ordered} received${!demo && item.outstanding > 0 && ['ordered', 'partial'].includes(po.status)
              ? ` <button class="link-button" data-purchase-receive="${po.id}" data-line="${item.line_id}" data-outstanding="${item.outstanding}">Receive</button>` : ''}`).join('<br>')}</td><td>${safe(po.expected_date || '—')}</td><td>${rowStatus(po.status)}</td><td>${!demo && ['ordered', 'partial'].includes(po.status)
           ? `<button class="link-button muted-link" data-purchase-cancel="${po.id}">Cancel</button>` : '—'}</td></tr>`));
+      byId('outgoing-queue').innerHTML = table(['Order','Customer','Due','Status'], planning.outgoing_orders.map(o =>
+        `<tr><td>#${o.id}</td><td>${safe(o.customer)}</td><td>${safe(o.due_date)}</td><td>${o.overdue ? '<span class="status status-low">Overdue</span>' : 'Scheduled'}</td></tr>`));
+      byId('incoming-queue').innerHTML = table(['PO','Expected','Status'], planning.incoming_purchases.map(o =>
+        `<tr><td>${safe(o.reference)}</td><td>${safe(o.expected_date || 'Not scheduled')}</td><td>${o.overdue ? '<span class="status status-low">Overdue</span>' : safe(o.status)}</td></tr>`));
       byId('transfers-table').innerHTML = table(['SKU', 'From', 'To', 'Units', 'When'], transfers.map(t =>
         `<tr><td>${safe(t.sku)}</td><td>${safe(t.source)}</td><td>${safe(t.destination)}</td><td>${t.quantity}</td><td>${safe(t.created_at.slice(0, 16))}</td></tr>`));
       byId('counts-table').innerHTML = table(['SKU', 'Warehouse', 'Expected', 'Counted', 'Status', 'Action'], counts.map(c =>

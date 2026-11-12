@@ -24,6 +24,7 @@ from .cycle_count_service import start_count, post_count, cancel_count, list_cou
 from .returns_service import restock_return, list_returns
 from .staff_service import (create_invitation, accept_invitation, staff_members, change_staff_role)
 from .audit_service import audit_stock
+from .operations_service import operations_queue
 
 router = APIRouter(prefix="/api")
 
@@ -357,6 +358,13 @@ def export_replenishment(request: Request, demo: bool = False,
         writer.writerow([csv_cell(row[col]) for col in columns])
     return Response(stream.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="elveriq-replenishment.csv"'})
+
+
+@router.get("/operations/queue")
+def upcoming_operations(request: Request, demo: bool = False,
+                        days: int = Query(default=7, ge=1, le=90),
+                        session: Session = Depends(get_db)):
+    return operations_queue(session, read_access(request, session, demo), days)
 
 
 @router.get("/audit")
