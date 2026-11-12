@@ -21,6 +21,7 @@ from .transfer_service import transfer_stock, list_transfers
 from .picking_service import order_pick_list
 from .replenishment_service import reorder_recommendations
 from .cycle_count_service import start_count, post_count, cancel_count, list_counts
+from .returns_service import restock_return, list_returns
 
 router = APIRouter(prefix="/api")
 
@@ -79,6 +80,14 @@ class AdjustIn(BaseModel):
     sku: str
     delta: int = Field(ge=-1_000_000, le=1_000_000)
     note: str = Field(default="", max_length=250)
+
+
+class ReturnIn(BaseModel):
+    order_id: int
+    sku: str = Field(min_length=1, max_length=80)
+    quantity: int = Field(ge=1, le=1_000_000)
+    reference: str = Field(min_length=1, max_length=100)
+    reason: str = Field(default="", max_length=250)
 
 
 class CountStartIn(BaseModel):
@@ -220,6 +229,22 @@ def create_transfer(payload: TransferIn, request: Request,
         payload.note, actor.id)
     session.commit()
     return {"id": transfer.id, "quantity": transfer.quantity}
+
+
+@router.get("/returns")
+def returns(request: Request, demo: bool = False, session: Session = Depends(get_db)):
+    return list_returns(session, read_access(request, session, demo))
+
+
+@router.post("/returns", status_code=201)
+def record_return(payload: ReturnIn, request: Request,
+                  x_csrf_token: str = Header(default=""),
+                  session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    receipt = restock_return(session, actor.business_id, payload.order_id,
+        payload.sku, payload.quantity, payload.reference, actor.id, payload.reason)
+    session.commit()
+    return {"id": receipt.id, "reference": receipt.reference, "quantity": receipt.quantity}
 
 
 @router.get("/cycle-counts")
