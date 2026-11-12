@@ -18,6 +18,7 @@ from .purchasing_service import (create_purchase_order, receive_purchase_line,
     cancel_purchase_order, list_purchase_orders)
 
 from .transfer_service import transfer_stock, list_transfers
+from .picking_service import order_pick_list
 
 router = APIRouter(prefix="/api")
 
@@ -233,6 +234,11 @@ def add_supplier(payload: SupplierIn, request: Request,
 @router.get("/orders")
 def orders(request: Request, demo: bool = False, session: Session = Depends(get_db)):
     return list_orders(session, read_access(request, session, demo))
+
+
+@router.get("/orders/{order_id}/pick-list")
+def pick_list(order_id: int, request: Request, session: Session = Depends(get_db)):
+    return order_pick_list(session, read_access(request, session, False), order_id)
 
 
 @router.post("/orders", status_code=201)
