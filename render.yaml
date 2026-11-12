@@ -1,9 +1,9 @@
 # Example blueprint. Add persistent PostgreSQL in hosting settings before deploying.
 services:
   - type: web
-    name: dispatchforge-warehouse-cloud
+    name: elveriq-warehouse-cloud
     runtime: python
-    plan: starter
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn dispatchforge_app.web:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
