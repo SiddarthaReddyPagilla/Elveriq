@@ -41,3 +41,16 @@ def test_existing_supplier_order_reduces_suggested_quantity(client):
 
 def test_replenishment_requires_tenant_auth(client):
     assert client.get('/api/replenishment').status_code==401
+
+
+def test_replenishment_csv_export_and_formula_protection(client):
+    h=register(client)
+    wid=client.get('/api/warehouses').json()[0]['id']
+    p=client.post('/api/products',headers=h,json={
+        'sku':'X-RISK','name':'=HYPERLINK("unsafe")','reorder_point':4})
+    assert p.status_code==201
+    csv=client.get('/api/export/replenishment.csv')
+    assert csv.status_code==200
+    assert "'=HYPERLINK" in csv.text
+    assert 'suggested_quantity' in csv.text
+    assert client.get('/api/export/replenishment.csv?demo=true').status_code==200

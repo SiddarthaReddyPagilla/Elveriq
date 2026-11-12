@@ -217,6 +217,21 @@ def replenishment(request: Request, demo: bool = False,
     return reorder_recommendations(session, read_access(request, session, demo))
 
 
+@router.get("/export/replenishment.csv")
+def export_replenishment(request: Request, demo: bool = False,
+                         session: Session = Depends(get_db)):
+    rows = reorder_recommendations(session, read_access(request, session, demo))
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    columns = ["warehouse", "sku", "product", "available", "reorder_point",
+               "incoming", "suggested_quantity"]
+    writer.writerow(columns)
+    for row in rows:
+        writer.writerow([csv_cell(row[col]) for col in columns])
+    return Response(stream.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="elveriq-replenishment.csv"'})
+
+
 @router.get("/movements")
 def movements(request: Request, demo: bool = False, session: Session = Depends(get_db)):
     return list_movements(session, read_access(request, session, demo))
