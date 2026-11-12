@@ -3,7 +3,7 @@ from datetime import date
 import csv
 import io
 from fastapi import APIRouter, Depends, File, Header, Query, Request, UploadFile
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -236,16 +236,25 @@ def transfers(request: Request, demo: bool = False, session: Session = Depends(g
     return list_transfers(session, read_access(request, session, demo))
 
 
-@router.post("/transfers", status_code=201)
+@router.post("/transfers")
 def create_transfer(payload: TransferIn, request: Request,
+                    idempotency_key: str = Header(min_length=8, max_length=128),
                     x_csrf_token: str = Header(default=""),
                     session: Session = Depends(get_db)):
-    actor = write_access(request, session, x_csrf_token)
-    transfer = transfer_stock(session, actor.business_id, payload.source_warehouse_id,
-        payload.destination_warehouse_id, payload.sku, payload.quantity,
-        payload.note, actor.id)
-    session.commit()
-    return {"id": transfer.id, "quantity": transfer.quantity}
+    try:
+        actor = write_access(request, session, x_csrf_token)
+        transfer, replayed = transfer_stock(
+            session, actor.business_id, payload.source_warehouse_id,
+            payload.destination_warehouse_id, payload.sku, payload.quantity,
+            payload.note, actor.id, idempotency_key=idempotency_key,
+        )
+        result = {"id": transfer.id, "quantity": transfer.quantity,
+                  "replayed": replayed}
+        session.commit()
+        return JSONResponse(result, status_code=200 if replayed else 201)
+    except Exception:
+        session.rollback()  # Never commit a partial debit on an error.
+        raise
 
 
 @router.get("/staff")

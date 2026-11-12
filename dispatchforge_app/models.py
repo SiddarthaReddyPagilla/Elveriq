@@ -84,6 +84,7 @@ class StockMovement(Base):
     on_hand_delta: Mapped[int] = mapped_column(Integer, default=0)
     reserved_delta: Mapped[int] = mapped_column(Integer, default=0)
     note: Mapped[str] = mapped_column(String(250), default="")
+    transfer_id: Mapped[int | None] = mapped_column(ForeignKey("inventory_transfers.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -150,6 +151,7 @@ class InventoryTransfer(Base):
     __tablename__ = "inventory_transfers"
     __table_args__ = (
         CheckConstraint("quantity > 0", name="transfer_quantity_positive"),
+        UniqueConstraint("business_id", "idempotency_key", name="uq_inventory_transfers_tenant_key"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
@@ -158,6 +160,8 @@ class InventoryTransfer(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    request_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

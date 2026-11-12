@@ -29,6 +29,7 @@ def audit_stock(session: Session, business_id: int, *, kind: str | None = None,
     return {"items": [{"id": movement.id, "sku": sku_name, "warehouse": warehouse,
               "kind": movement.kind, "on_hand_delta": movement.on_hand_delta,
               "reserved_delta": movement.reserved_delta, "note": movement.note,
-              "user_id": movement.user_id, "created_at": movement.created_at.isoformat()}
+              "user_id": movement.user_id, "transfer_id": movement.transfer_id,
+              "created_at": movement.created_at.isoformat()}
             for movement, sku_name, warehouse in records],
             "next_cursor": records[-1][0].id if has_more and records else None}

@@ -123,6 +123,7 @@ def list_movements(session: Session, business_id: int, limit: int = 40) -> list[
     return [
         {"id": m.id, "sku": sku, "warehouse": warehouse, "kind": m.kind,
          "on_hand_delta": m.on_hand_delta, "reserved_delta": m.reserved_delta,
-         "note": m.note, "created_at": m.created_at.isoformat()}
+         "note": m.note, "transfer_id": m.transfer_id,
+         "created_at": m.created_at.isoformat()}
         for m, sku, warehouse in session.execute(q)
     ]

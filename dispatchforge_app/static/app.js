@@ -71,8 +71,8 @@
         `<tr><td>#${o.id}</td><td>${safe(o.customer)}</td><td>${safe(o.due_date)}</td><td>${o.overdue ? '<span class="status status-low">Overdue</span>' : 'Scheduled'}</td></tr>`));
       byId('incoming-queue').innerHTML = table(['PO','Expected','Status'], planning.incoming_purchases.map(o =>
         `<tr><td>${safe(o.reference)}</td><td>${safe(o.expected_date || 'Not scheduled')}</td><td>${o.overdue ? '<span class="status status-low">Overdue</span>' : safe(o.status)}</td></tr>`));
-      byId('transfers-table').innerHTML = table(['SKU', 'From', 'To', 'Units', 'When'], transfers.map(t =>
-        `<tr><td>${safe(t.sku)}</td><td>${safe(t.source)}</td><td>${safe(t.destination)}</td><td>${t.quantity}</td><td>${safe(t.created_at.slice(0, 16))}</td></tr>`));
+      byId('transfers-table').innerHTML = table(['Transfer ID', 'SKU', 'From', 'To', 'Units', 'When'], transfers.map(t =>
+        `<tr><td>#${t.id}</td><td>${safe(t.sku)}</td><td>${safe(t.source)}</td><td>${safe(t.destination)}</td><td>${t.quantity}</td><td>${safe(t.created_at.slice(0, 16))}</td></tr>`));
       byId('counts-table').innerHTML = table(['SKU', 'Warehouse', 'Expected', 'Counted', 'Status', 'Action'], counts.map(c =>
         `<tr><td>${safe(c.sku)}</td><td>${safe(c.warehouse)}</td><td>${c.expected_on_hand}</td><td>${c.counted_on_hand === null ? '—' : c.counted_on_hand}</td><td>${rowStatus(c.status)}</td><td>${!demo && role === 'owner' && c.status === 'open' ? `<button class="link-button" data-count-post="${c.id}">Reconcile</button> <button class="link-button muted-link" data-count-cancel="${c.id}">Cancel</button>` : '—'}</td></tr>`));
       byId('returns-table').innerHTML = table(['Reference', 'Order', 'SKU', 'Units', 'When'], returns.map(r =>
@@ -129,10 +129,40 @@
       supplier_id: Number(d.get('supplier_id')), warehouse_id: Number(d.get('warehouse_id')),
       expected_date: d.get('expected_date') || null,
       items: [{sku: d.get('sku'), quantity: Number(d.get('quantity'))}]}));
-    submit('transfer-form', '/transfers', d => ({
-      source_warehouse_id: Number(d.get('source_warehouse_id')),
-      destination_warehouse_id: Number(d.get('destination_warehouse_id')),
-      sku: d.get('sku'), quantity: Number(d.get('quantity')), note: d.get('note')}));
+    // Keep the same key if the network fails and the operator retries unchanged data.
+    // Generate a new key only for a new or edited operation, never per HTTP attempt.
+    const transferForm = byId('transfer-form');
+    let pendingTransfer = null;
+    if (transferForm) transferForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const d = new FormData(transferForm);
+      const payload = {
+        source_warehouse_id: Number(d.get('source_warehouse_id')),
+        destination_warehouse_id: Number(d.get('destination_warehouse_id')),
+        sku: d.get('sku'), quantity: Number(d.get('quantity')), note: d.get('note')
+      };
+      const serialized = JSON.stringify(payload);
+      if (!pendingTransfer || pendingTransfer.serialized !== serialized) {
+        pendingTransfer = {serialized, key: crypto.randomUUID()};
+      }
+      const submitButton = transferForm.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      try {
+        const result = await api('/transfers', {
+          method: 'POST', body: serialized,
+          headers: {'Idempotency-Key': pendingTransfer.key}
+        });
+        pendingTransfer = null;
+        notice(`Transfer #${result.id} ${result.replayed ? 'already completed; no stock moved again.' : 'completed.'}`);
+        transferForm.reset();
+        await load();
+      } catch (error) {
+        // Do not discard the key: a timeout might follow a successful commit.
+        notice(error.message + ' Retrying unchanged details is safe.', true);
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
     submit('count-form', '/cycle-counts', d => ({warehouse_id: Number(d.get('warehouse_id')),
       sku: d.get('sku'), note: d.get('note')}));
     submit('return-form', '/returns', d => ({order_id: Number(d.get('order_id')),

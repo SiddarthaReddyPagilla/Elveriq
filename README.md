@@ -125,3 +125,14 @@ Built as an independent educational project, with the goal of validating real wa
 See [RELEASE-16-MILESTONES.md](RELEASE-16-MILESTONES.md) for transfers, physical counts,
 returns, staff access, replenishment, picking, and operations planning.
 All features are software simulations until a business pilot is completed.
+
+## Reliable inter-warehouse transfers
+
+The Transfers dashboard supports retry-safe stock moves within one business.
+Each request needs an `Idempotency-Key`; paired stock movement records share
+a structured transfer ID. The PostgreSQL implementation locks inventory rows
+in a consistent order and commits stock + audit records atomically. See
+[TRANSFERS.md](TRANSFERS.md) for migrations, replay instructions and tests.
+
+**Important:** The concurrent-transfer PostgreSQL tests must pass before this
+feature is used with real customer inventory. SQLite is for local demos only.
