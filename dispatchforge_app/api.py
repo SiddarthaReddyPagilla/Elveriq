@@ -17,6 +17,8 @@ from .order_service import create_order, change_order_status, list_orders
 from .purchasing_service import (create_purchase_order, receive_purchase_line,
     cancel_purchase_order, list_purchase_orders)
 
+from .transfer_service import transfer_stock, list_transfers
+
 router = APIRouter(prefix="/api")
 
 
@@ -73,6 +75,14 @@ class AdjustIn(BaseModel):
     warehouse_id: int
     sku: str
     delta: int = Field(ge=-1_000_000, le=1_000_000)
+    note: str = Field(default="", max_length=250)
+
+
+class TransferIn(BaseModel):
+    source_warehouse_id: int
+    destination_warehouse_id: int
+    sku: str = Field(min_length=1, max_length=80)
+    quantity: int = Field(ge=1, le=1_000_000)
     note: str = Field(default="", max_length=250)
 
 
@@ -180,6 +190,23 @@ def adjust(payload: AdjustIn, request: Request,
                               payload.sku, payload.delta, "adjust", payload.note, actor.id)
     session.commit()
     return {"on_hand": stock.on_hand, "reserved": stock.reserved}
+
+
+@router.get("/transfers")
+def transfers(request: Request, demo: bool = False, session: Session = Depends(get_db)):
+    return list_transfers(session, read_access(request, session, demo))
+
+
+@router.post("/transfers", status_code=201)
+def create_transfer(payload: TransferIn, request: Request,
+                    x_csrf_token: str = Header(default=""),
+                    session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    transfer = transfer_stock(session, actor.business_id, payload.source_warehouse_id,
+        payload.destination_warehouse_id, payload.sku, payload.quantity,
+        payload.note, actor.id)
+    session.commit()
+    return {"id": transfer.id, "quantity": transfer.quantity}
 
 
 @router.get("/movements")
