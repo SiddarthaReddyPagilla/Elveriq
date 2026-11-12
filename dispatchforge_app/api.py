@@ -19,6 +19,7 @@ from .purchasing_service import (create_purchase_order, receive_purchase_line,
 
 from .transfer_service import transfer_stock, list_transfers
 from .picking_service import order_pick_list
+from .replenishment_service import reorder_recommendations
 
 router = APIRouter(prefix="/api")
 
@@ -208,6 +209,12 @@ def create_transfer(payload: TransferIn, request: Request,
         payload.note, actor.id)
     session.commit()
     return {"id": transfer.id, "quantity": transfer.quantity}
+
+
+@router.get("/replenishment")
+def replenishment(request: Request, demo: bool = False,
+                  session: Session = Depends(get_db)):
+    return reorder_recommendations(session, read_access(request, session, demo))
 
 
 @router.get("/movements")
