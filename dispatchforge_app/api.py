@@ -20,6 +20,7 @@ from .purchasing_service import (create_purchase_order, receive_purchase_line,
 from .transfer_service import transfer_stock, list_transfers
 from .picking_service import order_pick_list
 from .replenishment_service import reorder_recommendations
+from .cycle_count_service import start_count, post_count, cancel_count, list_counts
 
 router = APIRouter(prefix="/api")
 
@@ -78,6 +79,16 @@ class AdjustIn(BaseModel):
     sku: str
     delta: int = Field(ge=-1_000_000, le=1_000_000)
     note: str = Field(default="", max_length=250)
+
+
+class CountStartIn(BaseModel):
+    warehouse_id: int
+    sku: str = Field(min_length=1, max_length=80)
+    note: str = Field(default="", max_length=250)
+
+
+class CountPostIn(BaseModel):
+    counted_on_hand: int = Field(ge=0, le=10_000_000)
 
 
 class TransferIn(BaseModel):
@@ -209,6 +220,44 @@ def create_transfer(payload: TransferIn, request: Request,
         payload.note, actor.id)
     session.commit()
     return {"id": transfer.id, "quantity": transfer.quantity}
+
+
+@router.get("/cycle-counts")
+def cycle_counts(request: Request, demo: bool = False,
+                 session: Session = Depends(get_db)):
+    return list_counts(session, read_access(request, session, demo))
+
+
+@router.post("/cycle-counts", status_code=201)
+def open_cycle_count(payload: CountStartIn, request: Request,
+                     x_csrf_token: str = Header(default=""),
+                     session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    count = start_count(session, actor.business_id, payload.warehouse_id,
+                        payload.sku, actor.id, payload.note)
+    session.commit()
+    return {"id": count.id, "status": count.status, "expected_on_hand": count.expected_on_hand}
+
+
+@router.post("/cycle-counts/{count_id}/post")
+def reconcile_cycle_count(count_id: int, payload: CountPostIn, request: Request,
+                          x_csrf_token: str = Header(default=""),
+                          session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token, owner_only=True)
+    count = post_count(session, actor.business_id, count_id,
+                       payload.counted_on_hand, actor.id)
+    session.commit()
+    return {"id": count.id, "status": count.status, "counted_on_hand": count.counted_on_hand}
+
+
+@router.post("/cycle-counts/{count_id}/cancel")
+def abandon_cycle_count(count_id: int, request: Request,
+                        x_csrf_token: str = Header(default=""),
+                        session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token, owner_only=True)
+    count = cancel_count(session, actor.business_id, count_id)
+    session.commit()
+    return {"id": count.id, "status": count.status}
 
 
 @router.get("/replenishment")
