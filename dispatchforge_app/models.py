@@ -160,3 +160,25 @@ class InventoryTransfer(Base):
     note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CycleCount(Base):
+    """Physical stock count snapshot; posting adjusts the warehouse aggregate."""
+    __tablename__ = "cycle_counts"
+    __table_args__ = (
+        CheckConstraint("expected_on_hand >= 0", name="count_expected_nonnegative"),
+        CheckConstraint("counted_on_hand IS NULL OR counted_on_hand >= 0",
+                        name="count_observed_nonnegative"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+    expected_on_hand: Mapped[int] = mapped_column(Integer, nullable=False)
+    counted_on_hand: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
+    note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    posted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
