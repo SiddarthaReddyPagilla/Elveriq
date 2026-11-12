@@ -61,7 +61,7 @@ def authenticate(session: Session, workspace: str, email: str, password: str) ->
         return None
     user = session.scalar(select(User).where(User.business_id == business.id,
                                             User.email == email.strip().lower()))
-    if user and verify_password(password, user.password_hash):
+    if user and user.role != "disabled" and verify_password(password, user.password_hash):
         return user
     return None
 
@@ -71,7 +71,8 @@ def actor_from_session(session: Session, signed_session: dict) -> User | None:
     bid = signed_session.get("bid")
     if not isinstance(uid, int) or not isinstance(bid, int):
         return None
-    return session.scalar(select(User).where(User.id == uid, User.business_id == bid))
+    return session.scalar(select(User).where(User.id == uid, User.business_id == bid,
+                                           User.role != "disabled"))
 
 
 def require_role(user: User | None, allowed: set[str]) -> None:

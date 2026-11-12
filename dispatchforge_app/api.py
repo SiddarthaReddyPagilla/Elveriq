@@ -22,6 +22,7 @@ from .picking_service import order_pick_list
 from .replenishment_service import reorder_recommendations
 from .cycle_count_service import start_count, post_count, cancel_count, list_counts
 from .returns_service import restock_return, list_returns
+from .staff_service import (create_invitation, accept_invitation, staff_members, change_staff_role)
 
 router = APIRouter(prefix="/api")
 
@@ -80,6 +81,20 @@ class AdjustIn(BaseModel):
     sku: str
     delta: int = Field(ge=-1_000_000, le=1_000_000)
     note: str = Field(default="", max_length=250)
+
+
+class StaffInviteIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    role: str
+
+
+class StaffAcceptIn(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    password: str = Field(min_length=10, max_length=128)
+
+
+class StaffRoleIn(BaseModel):
+    role: str
 
 
 class ReturnIn(BaseModel):
@@ -229,6 +244,43 @@ def create_transfer(payload: TransferIn, request: Request,
         payload.note, actor.id)
     session.commit()
     return {"id": transfer.id, "quantity": transfer.quantity}
+
+
+@router.get("/staff")
+def list_staff(request: Request, session: Session = Depends(get_db)):
+    actor = actor_from_session(session, request.session)
+    require_role(actor, {"owner"})
+    return staff_members(session, actor.business_id)
+
+
+@router.post("/staff/invitations", status_code=201)
+def invite_staff(payload: StaffInviteIn, request: Request,
+                 x_csrf_token: str = Header(default=""),
+                 session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token, owner_only=True)
+    invitation, token = create_invitation(session, actor.business_id, payload.email,
+                                           payload.role, actor.id)
+    session.commit()
+    # Return one time: only SHA-256 digest is stored in the database.
+    return {"id": invitation.id, "email": invitation.email, "role": invitation.role,
+            "token": token, "expires_at": invitation.expires_at.isoformat()}
+
+
+@router.post("/staff/invitations/accept", status_code=201)
+def accept_staff_invite(payload: StaffAcceptIn, session: Session = Depends(get_db)):
+    staff = accept_invitation(session, payload.token, payload.password)
+    session.commit()
+    return {"id": staff.id, "email": staff.email, "role": staff.role}
+
+
+@router.patch("/staff/{user_id}/role")
+def update_staff(user_id: int, payload: StaffRoleIn, request: Request,
+                 x_csrf_token: str = Header(default=""),
+                 session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token, owner_only=True)
+    user = change_staff_role(session, actor.business_id, user_id, payload.role, actor.id)
+    session.commit()
+    return {"id": user.id, "role": user.role}
 
 
 @router.get("/returns")
