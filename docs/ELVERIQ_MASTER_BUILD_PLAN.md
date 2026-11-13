@@ -25,6 +25,10 @@ Business-scoped accounts; roles/invitations; warehouses and products; warehouse-
 6. **Role-based workbench**: bin directory, placement reconciliation, work queue, scan station and operator actions in the existing dashboard.
 7. **Additive PostgreSQL migration and tests.** SQLite supports local demonstrations. PostgreSQL row locks and production behavior must be proven in CI/pilot before release.
 
+### Phase 1.1 addition (November 13, 2026; local verification only)
+
+8. **Bin/SKU cycle count and variance reconciliation:** start a counted snapshot for one bin/SKU, supervise posting through owner-only action, update the warehouse aggregate and the bin quantity atomically, reject stale snapshots/active movement tasks/reservation and capacity violations, and append movement audit evidence. Includes a separate count register and a new additive PostgreSQL migration. See `docs/BIN_CYCLE_COUNTS.md`. It is **not** blind counting, bin freeze, or threshold-based multi-person approvals; EV-096/EV-098/EV-102 remain gap/partial as explained in `docs/FEATURE_IMPLEMENTATION_STATUS_2026-11-13.md`.
+
 **Critical boundary:** Warehouse-level `StockLevel` remains the accounting authority, and `BinStock` is a known physical subset. Existing stock receipts and fulfillment do not create or consume warehouse tasks automatically. `unlocate` is a staging bridge, **not yet order-linked picking**. Do not describe this increment as a complete WMS, slotting engine, wave picker, shipping engine or true lot/HU ledger. See `docs/WAREHOUSE_EXECUTION.md`.
 
 ## 2. Dependency-ordered master phases

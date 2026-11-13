@@ -139,7 +139,18 @@
     <section class="section-view hidden" data-view="counts">
       <div class="section-title"><div><h2>Physical cycle counts</h2><p>Count products on the shelf, then reconcile against the recorded balance.</p></div></div>
       {% if not is_demo %}<form id="count-form" class="panel order-form"><h3>Start a stock count</h3><div class="order-fields"><label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label><label>Product<select name="sku" class="sku-select" required></select></label><label>Count note<input name="note" maxlength="250" placeholder="Weekly audit"></label></div><button class="button" type="submit">Start count</button></form>{% endif %}
-      <div class="panel"><div class="panel-title"><h3>Count register</h3></div><div id="counts-table" class="table-wrap"></div></div>
+      {% if not is_demo %}<form id="bin-count-form" class="panel order-form"><h3>Count an individual storage bin</h3>
+        <div class="order-fields">
+          <label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label>
+          <label>Physical bin<select name="bin_id" required><option value="">Choose a warehouse first</option></select></label>
+          <label>SKU<select name="sku" class="sku-select" required></select></label>
+          <label>Reason / reference<input name="note" maxlength="250" placeholder="Spot check, audit, discrepancy"></label>
+        </div>
+        <button class="button" type="submit">Open bin count</button>
+        <p class="small muted">Only one open count per bin and SKU. Complete or cancel active moves first. An owner must authorize reconciliation, which updates both the physical bin quantity and warehouse on-hand total.</p>
+      </form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>Bin-specific physical counts</h3></div><div id="bin-counts-table" class="table-wrap"></div></div>
+      <div class="panel"><div class="panel-title"><h3>Warehouse-wide counts</h3></div><div id="counts-table" class="table-wrap"></div></div>
     </section>
     <section class="section-view hidden" data-view="returns">
       <div class="section-title"><div><h2>Customer returns</h2><p>After receiving and inspecting returned goods, restock units from completed orders.</p></div></div>

@@ -58,12 +58,22 @@
       : '<option value="">Choose a destination bin</option>' + matching.map(b => `<option value="${b.id}">${safe(b.code)}</option>`).join('');
     if (kind !== 'unlocate' && matching.some(b => String(b.id) === destOld)) dest.value = destOld;
   }
+  function refreshBinCountOptions() {
+    const form = byId('bin-count-form'); if (!form) return;
+    const warehouseId = Number(form.elements.warehouse_id.value);
+    const select = form.elements.bin_id;
+    const old = select.value;
+    const choices = locations.filter(bin => bin.warehouse_id === warehouseId && bin.active);
+    select.innerHTML = '<option value="">Select a physical bin</option>' +
+      choices.map(bin => `<option value="${bin.id}">${safe(bin.code)}</option>`).join('');
+    if (choices.some(bin => String(bin.id) === old)) select.value = old;
+  }
   async function load() {
     try {
-      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows, transfers, counts, returns, replenishment, team, planning, bins, binStocks, reconciliation, tasks, workerUsers] = await Promise.all([
+      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows, transfers, counts, binCounts, returns, replenishment, team, planning, bins, binStocks, reconciliation, tasks, workerUsers] = await Promise.all([
         api('/overview'), api('/inventory'), api('/products'), api('/warehouses'),
         api('/orders'), api('/movements'), api('/suppliers'), api('/purchase-orders'),
-        api('/transfers'), api('/cycle-counts'), api('/returns'), api('/replenishment'),
+        api('/transfers'), api('/cycle-counts'), api('/bin-cycle-counts'), api('/returns'), api('/replenishment'),
         role === 'owner' && !demo ? api('/staff') : Promise.resolve([]),
         api('/operations/queue'),
         api('/locations'), api('/locations/stock'), api('/locations/reconciliation'), api('/tasks'),
@@ -102,6 +112,8 @@
         `<tr><td>#${t.id}</td><td>${safe(t.sku)}</td><td>${safe(t.source)}</td><td>${safe(t.destination)}</td><td>${t.quantity}</td><td>${safe(t.created_at.slice(0, 16))}</td></tr>`));
       byId('counts-table').innerHTML = table(['SKU', 'Warehouse', 'Expected', 'Counted', 'Status', 'Action'], counts.map(c =>
         `<tr><td>${safe(c.sku)}</td><td>${safe(c.warehouse)}</td><td>${c.expected_on_hand}</td><td>${c.counted_on_hand === null ? '—' : c.counted_on_hand}</td><td>${rowStatus(c.status)}</td><td>${!demo && role === 'owner' && c.status === 'open' ? `<button class="link-button" data-count-post="${c.id}">Reconcile</button> <button class="link-button muted-link" data-count-cancel="${c.id}">Cancel</button>` : '—'}</td></tr>`));
+      byId('bin-counts-table').innerHTML = table(['Warehouse', 'Bin', 'SKU', 'Expected', 'Counted', 'Variance', 'Status', 'Action'],
+        binCounts.map(c => `<tr><td>${safe(c.warehouse)}</td><td><strong>${safe(c.bin_code)}</strong></td><td>${safe(c.sku)}</td><td>${c.expected_on_hand}</td><td>${c.counted_on_hand === null ? '—' : c.counted_on_hand}</td><td>${c.variance === null ? '—' : c.variance > 0 ? '+' + c.variance : c.variance}</td><td>${rowStatus(c.status)}</td><td>${!demo && role === 'owner' && c.status === 'open' ? `<button class="link-button" data-bin-count-post="${c.id}" data-expected="${c.expected_on_hand}" data-bin-code="${safe(c.bin_code)}">Reconcile</button> <button class="link-button muted-link" data-bin-count-cancel="${c.id}">Cancel</button>` : '—'}</td></tr>`));
       byId('returns-table').innerHTML = table(['Reference', 'Order', 'SKU', 'Units', 'When'], returns.map(r =>
         `<tr><td>${safe(r.reference)}</td><td>#${r.order_id}</td><td>${safe(r.sku)}</td><td>${r.quantity}</td><td>${safe(r.created_at.slice(0, 16))}</td></tr>`));
       byId('replenishment-table').innerHTML = table(['Product', 'Location', 'Available', 'Open PO units', 'Suggested'], replenishment.map(r =>
@@ -161,6 +173,7 @@
         if (products.some(p => p.sku === old)) select.value = old;
       });
       refreshTaskBinOptions();
+      refreshBinCountOptions();
     } catch (error) { notice(error.message, true); }
   }
   async function submit(id, path, build) {
@@ -226,6 +239,12 @@
     });
     submit('count-form', '/cycle-counts', d => ({warehouse_id: Number(d.get('warehouse_id')),
       sku: d.get('sku'), note: d.get('note')}));
+    submit('bin-count-form', '/bin-cycle-counts', d => ({
+      warehouse_id: Number(d.get('warehouse_id')), bin_id: Number(d.get('bin_id')),
+      sku: d.get('sku'), note: d.get('note') || ''
+    }));
+    if (byId('bin-count-form')) byId('bin-count-form').elements.warehouse_id.addEventListener(
+      'change', refreshBinCountOptions);
     submit('return-form', '/returns', d => ({order_id: Number(d.get('order_id')),
       sku: d.get('sku'), quantity: Number(d.get('quantity')),
       reference: d.get('reference'), reason: d.get('reason')}));
@@ -262,6 +281,30 @@
           await api(`/cycle-counts/${cancel.dataset.countCancel}/cancel`, {method:'POST'});
         }
         notice('Cycle count updated.'); await load();
+      } catch (error) { notice(error.message, true); }
+    });
+    byId('bin-counts-table').addEventListener('click', async event => {
+      const post = event.target.closest('[data-bin-count-post]');
+      const cancel = event.target.closest('[data-bin-count-cancel]');
+      if (!post && !cancel) return;
+      try {
+        if (post) {
+          const answer = window.prompt(`Physical units counted for bin ${post.dataset.binCode} (expected ${post.dataset.expected}):`);
+          if (answer === null) return;
+          if (!/^\d+$/.test(answer.trim())) return notice('Enter a nonnegative whole number.', true);
+          const counted = Number(answer.trim());
+          if (!Number.isSafeInteger(counted) || counted > 10000000) return notice('Count must be between 0 and 10,000,000.', true);
+          const variance = counted - Number(post.dataset.expected);
+          if (!window.confirm(`Reconcile bin count #${post.dataset.binCountPost} with ${counted} units (variance ${variance >= 0 ? '+' : ''}${variance})? This updates the warehouse accounting balance.`)) return;
+          await api(`/bin-cycle-counts/${post.dataset.binCountPost}/post`, {
+            method:'POST', body:JSON.stringify({counted_on_hand:counted})});
+          notice('Bin count posted; bin and aggregate inventory reconciled.');
+        } else {
+          if (!window.confirm('Cancel this bin-specific physical count?')) return;
+          await api(`/bin-cycle-counts/${cancel.dataset.binCountCancel}/cancel`, {method:'POST'});
+          notice('Bin count canceled.');
+        }
+        await load();
       } catch (error) { notice(error.message, true); }
     });
     const inviteForm = byId('invite-form');

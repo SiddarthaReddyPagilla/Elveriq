@@ -138,3 +138,8 @@ in a consistent order and commits stock + audit records atomically. See
 
 **Important:** The concurrent-transfer PostgreSQL tests must pass before this
 feature is used with real customer inventory. SQLite is for local demos only.
+
+
+### Physical bin cycle counts (Phase 1.1)
+
+The **Cycle counts** workbench now supports per-bin SKU snapshots and owner-authorized variance posting, in addition to warehouse-level counts. This updates both bin placement and warehouse stock in one transaction, with stale-snapshot and work-in-progress protection. See [`docs/BIN_CYCLE_COUNTS.md`](docs/BIN_CYCLE_COUNTS.md) for API, permissions, migration order and deployment caveats. Apply `migrations/20261113_bin_cycle_counts.sql` after the Phase 1 migration before enabling the new API on PostgreSQL.

@@ -1,6 +1,6 @@
 # Elveriq — Git Integration and Safe Release Checklist
 
-This archive was built from the user-provided `Elveriq-main.zip` snapshot. It has a **new local Git history**, **no authenticated GitHub remote**, and **nothing was pushed to your repository by the assistant**. The three replayable feature commits are separately exported as `git-format-patch` files (see package README). The initial imported-baseline commit exists only to make those patches replayable; it is **not** the actual history of your GitHub repository.
+This archive was built from the user-provided `Elveriq-main.zip` snapshot. It has a **new local Git history**, **no authenticated GitHub remote**, and **nothing was pushed to your repository by the assistant**. The five replayable feature commits (three Phase 1 plus two Phase 1.1) are separately exported as `git-format-patch` files (see package README). The initial imported-baseline commit exists only to make those patches replayable; it is **not** the actual history of your GitHub repository.
 
 ## A. Review and apply commits on your Mac (recommended)
 
@@ -40,11 +40,13 @@ git push -u origin feature/warehouse-execution-phase1
 
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/20261113_warehouse_execution.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/20261113_bin_cycle_counts.sql
 ```
 
 - [ ] Run migrations on staging first. **Never run the concurrency-test suite against production.**
 - [ ] Run `python -m pytest -q` with disposable PostgreSQL credentials supplied as `ELVERIQ_TEST_POSTGRES_URL`.
 - [ ] Test two tenants, distinct warehouse bins, manager/staff permissions, scan mismatch, retry replay, capacity and pending putaway.
+- [ ] Test physical bin counts: zero/positive/negative variance, concurrent posting, active moves, changing reservations, stale watermarks and owner-only approval. The new `bin_cycle_counts` migration MUST come after the warehouse execution migration.
 - [ ] Validate that existing receipts, reservations, fulfillment, purchases, returns, stock adjustments and transfers still work on migrated staging data.
 - [ ] Check application logs, database locks/error rates and location reconciliation after the pilot exercise.
 - [ ] Merge only after passing code review, CI and staging acceptance; then deploy gradually to real users.

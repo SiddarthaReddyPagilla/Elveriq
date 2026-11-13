@@ -72,3 +72,8 @@ POST requests require the existing `X-CSRF-Token` session token. Task creation a
 - Local SQLite is for sequential development; PostgreSQL transaction tests are required before production.
 - Browser workbench is desktop-friendly and supports keyboard-wedge scanning, but is **not** the intended production handheld interface.
 - For rollback of application code, **do not drop new tables after any work has been recorded** without a migration/rehoming plan. Preserve existing stock data and the new task evidence.
+
+
+## Phase 1.1: Physical bin counts (November 13, 2026)
+
+The additional `bin_cycle_counts` table and `/api/bin-cycle-counts` endpoints provide physical-bin SKU snapshots, owner-authorized posting, variance audit entries and stale/count-conflict safeguards. Apply `migrations/20261113_bin_cycle_counts.sql` **after** the warehouse-execution migration and before deploying this code. Read `docs/BIN_CYCLE_COUNTS.md` for the exact workflow, permissions and remaining blind-count/freeze limitations.
