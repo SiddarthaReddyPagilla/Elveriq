@@ -305,3 +305,32 @@ class WarehouseTaskEvent(Base):
     action: Mapped[str] = mapped_column(String(32), nullable=False)
     detail: Mapped[str] = mapped_column(String(250), default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BinCycleCount(Base):
+    """Bin/SKU snapshot and two-person reviewable variance adjustment record."""
+    __tablename__ = "bin_cycle_counts"
+    __table_args__ = (
+        CheckConstraint("expected_on_hand >= 0", name="bin_count_expected_nonnegative"),
+        CheckConstraint("expected_allocated >= 0", name="bin_count_allocated_nonnegative"),
+        CheckConstraint("expected_warehouse_on_hand >= 0", name="bin_count_warehouse_nonnegative"),
+        CheckConstraint("counted_on_hand IS NULL OR counted_on_hand >= 0", name="bin_count_observed_nonnegative"),
+        CheckConstraint("status IN ('open', 'posted', 'canceled')", name="bin_count_status_valid"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    bin_id: Mapped[int] = mapped_column(ForeignKey("warehouse_bins.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+    expected_on_hand: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_allocated: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_warehouse_on_hand: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_movement_id: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expected_task_event_id: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    counted_on_hand: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
+    note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    posted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -25,6 +25,8 @@ from .returns_service import restock_return, list_returns
 from .staff_service import (create_invitation, accept_invitation, staff_members, change_staff_role)
 from .audit_service import audit_stock
 from .operations_service import operations_queue
+from .bin_cycle_count_service import (start_bin_count, post_bin_count,
+    cancel_bin_count, list_bin_counts)
 from .warehouse_execution import (create_bin, list_bins, list_bin_stock, location_summary,
     create_task, list_tasks, task_events, assign_task, claim_task, start_task,
     cancel_task, complete_task)
@@ -136,6 +138,13 @@ class BinIn(BaseModel):
     rack: str = Field(default="", max_length=40)
     shelf: str = Field(default="", max_length=40)
     capacity_units: int | None = Field(default=None, ge=1, le=10_000_000)
+
+
+class BinCountStartIn(BaseModel):
+    warehouse_id: int = Field(gt=0)
+    bin_id: int = Field(gt=0)
+    sku: str = Field(min_length=1, max_length=80)
+    note: str = Field(default="", max_length=250)
 
 
 class TaskIn(BaseModel):
@@ -379,6 +388,47 @@ def abandon_cycle_count(count_id: int, request: Request,
                         session: Session = Depends(get_db)):
     actor = write_access(request, session, x_csrf_token, owner_only=True)
     count = cancel_count(session, actor.business_id, count_id)
+    session.commit()
+    return {"id": count.id, "status": count.status}
+
+
+@router.get("/bin-cycle-counts")
+def bin_cycle_counts(request: Request, demo: bool = False,
+                     session: Session = Depends(get_db)):
+    return list_bin_counts(session, read_access(request, session, demo))
+
+
+@router.post("/bin-cycle-counts", status_code=201)
+def open_bin_cycle_count(payload: BinCountStartIn, request: Request,
+                         x_csrf_token: str = Header(default=""),
+                         session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    count = start_bin_count(session, actor.business_id, payload.warehouse_id,
+                            payload.bin_id, payload.sku, actor.id, payload.note)
+    session.commit()
+    return {"id": count.id, "status": count.status,
+            "expected_on_hand": count.expected_on_hand}
+
+
+@router.post("/bin-cycle-counts/{count_id}/post")
+def reconcile_bin_cycle_count(count_id: int, payload: CountPostIn, request: Request,
+                              x_csrf_token: str = Header(default=""),
+                              session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token, owner_only=True)
+    count = post_bin_count(session, actor.business_id, count_id,
+                           payload.counted_on_hand, actor.id)
+    session.commit()
+    return {"id": count.id, "status": count.status,
+            "counted_on_hand": count.counted_on_hand,
+            "variance": count.counted_on_hand - count.expected_on_hand}
+
+
+@router.post("/bin-cycle-counts/{count_id}/cancel")
+def abandon_bin_cycle_count(count_id: int, request: Request,
+                            x_csrf_token: str = Header(default=""),
+                            session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token, owner_only=True)
+    count = cancel_bin_count(session, actor.business_id, count_id)
     session.commit()
     return {"id": count.id, "status": count.status}
 
