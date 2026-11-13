@@ -1,0 +1,471 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
+
+/* Elveriq brand system. Loaded after legacy and cinematic styles.
+   Desaturated pine connects the dark public experience to the light operations UI.
+   This file does not change dashboard behavior or warehouse data flows. */
+:root {
+  --ink: #1c2924;
+  --muted: #61716a;
+  --green: #326451;
+  --light: #e9f0eb;
+  --border: #dce5df;
+  --bg: #f4f7f4;
+  --card: #fff;
+  --gold: #877b60;
+  --elveriq-pine: #326451;
+  --elveriq-pine-strong: #275342;
+  --elveriq-pine-light: #e3eee7;
+  --elveriq-cream: #f4f7f4;
+}
+/* Preserve legibility on operational tables, status chips, and forms. */
+body:not(:has(.cinematic-page)) {
+  background: var(--elveriq-cream);
+  color: var(--ink);
+}
+body:not(:has(.cinematic-page)) .site-header {
+  border-bottom: 1px solid #dce5df;
+  background: #f8faf8;
+}
+.brand-mark {
+  background: var(--elveriq-pine);
+  color: #fff;
+}
+.brand-accent { color: var(--elveriq-pine); }
+.button:not(.cinema-button) {
+  background: var(--elveriq-pine);
+  border-color: var(--elveriq-pine);
+  color: #fff;
+}
+.button:not(.cinema-button):hover {
+  background: var(--elveriq-pine-strong);
+  border-color: var(--elveriq-pine-strong);
+}
+.button.button-outline:not(.cinema-button) {
+  background: #fff;
+  border-color: #cbd9cf;
+  color: var(--elveriq-pine-strong);
+}
+.button.button-outline:not(.cinema-button):hover { background: #ecf3ed; }
+.top-nav a:focus-visible,
+.button:focus-visible,
+.side-link:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.link-button:focus-visible,
+.text-button:focus-visible {
+  outline: 2px solid var(--elveriq-pine);
+  outline-offset: 3px;
+}
+.sidebar,.stat-card,.panel,.auth-card {
+  border-color: #dce5df;
+  box-shadow: 0 10px 30px rgba(17,44,30,.035);
+}
+.side-link:hover,.side-link.active {
+  background: var(--elveriq-pine-light);
+  color: var(--elveriq-pine-strong);
+}
+.avatar,.auth-symbol,.feature-icon {
+  background: var(--elveriq-pine-light);
+  color: var(--elveriq-pine-strong);
+}
+.pill-live,.status-fulfilled {
+  background: #e3eee7;
+  color: #24523f;
+}
+/* Low stock remains amber for operational meaning. */
+.pill-demo { background: #f6efe4; color: #7e5a30; }
+.status-low,.pill-warn,.low-text { color: #9d512f; }
+.tip-box {
+  background: #eef3ef;
+  border-color: #dbe7dd;
+  color: #365b4a;
+}
+.demo-cta {
+  background: #e3eee7;
+  color: var(--ink);
+}
+.demo-cta p { color: #536d5f; }
+.alert.success { background: #e6f0e9; color: #285840; border-color: #caddd0; }
+input:focus,select:focus {
+  border-color: var(--elveriq-pine);
+  box-shadow: 0 0 0 3px rgba(50,100,81,.13);
+}
+/* Cinematic pages retain black and white, adding only a muted pine accent. */
+body:has(.cinematic-page) .brand-mark {
+  background: #b6d1c0;
+  color: #12231a;
+}
+body:has(.cinematic-page) .brand-accent { color: #b6d1c0; }
+body:has(.cinematic-page) .top-nav .button-small {
+  background: #e8f0ea;
+  border-color: #e8f0ea;
+  color: #173b2b;
+}
+body:has(.cinematic-page) .top-nav .button-small:hover {
+  background: #d7e7dc;
+  border-color: #d7e7dc;
+}
+body:has(.cinematic-page) .top-nav .button-small:focus-visible {
+  outline-color: #b6d1c0;
+}
+.cinematic-page .cinema-led {
+  border-color: #b6d1c0;
+  background: #b6d1c0;
+}
+.cinematic-page .cinema-hero-scrim {
+  background: rgba(5,7,9,.56);
+}
+.cinematic-page .cinema-button-light {
+  background: #edf3ee;
+  border-color: #edf3ee;
+  color: #153b2a;
+}
+.cinematic-page .cinema-button-light:hover { background: #dcebe0; }
+.cinematic-page .cinema-statement,
+.cinematic-page .cinema-workspace { background: #eaf0eb; }
+.cinematic-page .cinema-statement .cinema-label,
+.cinematic-page .cinema-workspace .cinema-label { color: #3e6552; }
+.cinematic-page .cinema-text-link { color: #285b43; }
+.cinematic-page .cinema-feature-list>div { border-color: #c4d4c9; }
+.cinematic-page .cinema-hero-note { color: #d0d9d2; }
+.cinematic-page .cinema-step-index { color: #cee1d3; }
+.cinematic-page .cinema-journey .cinema-label { color: #b6d1c0; }
+@media (prefers-reduced-motion: reduce) {
+  .button:not(.cinema-button) { transition: none; }
+}
+
+
+/* --------------------------------------------------------------------------
+   Elveriq unified application experience. Operations UI uses the same
+   industrial photography, dark architecture, and muted green as the landing.
+   No authenticated workflows or interactions are modified by this file.
+   -------------------------------------------------------------------------- */
+
+/* Application-wide type tokens */
+body { font-family: Manrope, system-ui, sans-serif; }
+body:not(:has(.cinematic-page)) {
+  --elveriq-surface: #f3f5f3;
+  --elveriq-surface-2: #e7ece8;
+  --elveriq-charcoal: #141b19;
+  --elveriq-border: #d5dcd7;
+  --elveriq-pine: #326451;
+  --elveriq-pine-strong: #25483e;
+  background: var(--elveriq-surface);
+  color: #1b2823;
+}
+body:not(:has(.cinematic-page)) .site-header {
+  position:sticky;
+  top:12px;
+  z-index:60;
+  width:calc(100% - 32px);
+  max-width:1280px;
+  margin:12px auto 0;
+  padding:12px 20px;
+  background:rgba(20,27,25,.97);
+  border:1px solid rgba(255,255,255,.13);
+  border-radius:14px;
+  box-shadow:0 18px 44px rgba(10,18,15,.16);
+  color:#f3f7f4;
+  -webkit-backdrop-filter:blur(14px);
+  backdrop-filter:blur(14px);
+}
+body:not(:has(.cinematic-page)) .site-header .brand {
+  color:#fff;
+  font-weight:700;
+  font-size:20px;
+  letter-spacing:-.03em;
+}
+body:not(:has(.cinematic-page)) .site-header .brand-mark {
+  color:#14221d;
+  background:#d9e8dc;
+  border-radius:8px;
+  width:34px;
+  height:34px;
+  font-weight:700;
+}
+body:not(:has(.cinematic-page)) .site-header .brand-accent{color:#d1e4d5}
+body:not(:has(.cinematic-page)) .top-nav a{color:#f0f4f0;font-weight:500}
+body:not(:has(.cinematic-page)) .top-nav a:hover{color:#d6e9dd}
+body:not(:has(.cinematic-page)) .top-nav .button {
+  border:1px solid #e6efe8;
+  background:#e6efe8;
+  color:#1b3025;
+  font-weight:650;
+  border-radius:8px;
+  box-shadow:none;
+}
+body:not(:has(.cinematic-page)) .top-nav .button:hover{background:#d6e5d9;color:#1b3025}
+body:not(:has(.cinematic-page)) .site-footer{
+  color:#7f9089;
+  background:#121a17;
+  border:0;
+  margin-top:64px;
+  padding:24px 16px;
+}
+body:not(:has(.cinematic-page)) :is(a,button,input,select,summary,textarea):focus-visible {
+  outline:3px solid #a7cbb4;
+  outline-offset:3px;
+}
+
+/* Dashboard: dark operations banner and industrial navigation */
+body:has(#workspace) .workspace {
+  max-width:1440px;
+  grid-template-columns:252px minmax(0,1fr);
+  gap:24px;
+  margin-top:32px;
+  align-items:stretch;
+}
+body:has(#workspace) .sidebar {
+  top:104px;
+  position:sticky;
+  align-self:start;
+  min-height:min(80vh,980px);
+  max-height:calc(100vh - 124px);
+  overflow-y:auto;
+  background:#17211c;
+  border:1px solid #263a30;
+  border-radius:16px;
+  color:#e7f1e9;
+  padding:12px 10px 18px;
+  box-shadow:0 18px 55px rgba(18,33,25,.16);
+}
+body:has(#workspace) .sidebar-label {
+  color:#bacdc1;
+  padding:12px 12px 8px;
+}
+body:has(#workspace) .workspace-identity {
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  display:flex;
+  align-items:flex-end;
+  min-height:170px;
+  margin:0 0 12px;
+  padding:20px 12px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:10px;
+  background:#25392f;
+}
+body:has(#workspace) .workspace-identity::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  background:#26392e url('/static/media/warehouse-storage.webp') center center / cover no-repeat;
+  filter:grayscale(.68) brightness(.67);
+}
+body:has(#workspace) .workspace-identity::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:rgba(9,19,15,.42);
+}
+body:has(#workspace) .workspace-identity strong,
+body:has(#workspace) .workspace-identity small {color:#f7faf7}
+body:has(#workspace) .workspace-identity small{color:#c7d3cb}
+body:has(#workspace) .workspace-identity .avatar {
+  border:1px solid rgba(255,255,255,.25);
+  color:#17251d;
+  background:#d4e4d8;
+}
+body:has(#workspace) .sidebar-links{gap:4px;margin-top:12px}
+body:has(#workspace) .side-link {
+  color:#ccd8cf;
+  padding:11px 12px;
+  border-radius:9px;
+  font-weight:550;
+  transition:background-color 300ms cubic-bezier(.22,1,.36,1),color 300ms cubic-bezier(.22,1,.36,1);
+}
+body:has(#workspace) .side-link:hover{color:#fff;background:#283a31}
+body:has(#workspace) .side-link.active{color:#fff;background:#365f4e}
+body:has(#workspace) .sidebar-bottom{
+  border-color:rgba(255,255,255,.12);
+  color:#e5eee7;
+}
+body:has(#workspace) .sidebar-bottom .eyebrow{color:#c5d7c9}
+body:has(#workspace) .sidebar-bottom small{color:#b3c3b8}
+body:has(#workspace) .sidebar-bottom .text-button{color:#d3e7d8}
+body:has(#workspace) .slug-code{color:#e8f3eb}
+
+body:has(#workspace) .dashboard-top {
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  min-height:224px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.08);
+  background:#17231f url('/static/media/warehouse-hero.webp') 50% 47% / cover no-repeat;
+  padding:32px 36px;
+  box-shadow:0 18px 52px rgba(18,32,24,.12);
+}
+body:has(#workspace) .dashboard-top::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:rgba(9,16,14,.70);
+}
+body:has(#workspace) .dashboard-top h1{
+  color:#fff;
+  font-size:30px;
+  font-weight:650;
+  max-width:680px;
+  text-wrap:balance;
+}
+body:has(#workspace) .dashboard-top p{
+  color:#d9e1dd;
+  font-size:14px;
+  text-wrap:pretty;
+  max-width:560px;
+}
+body:has(#workspace) .dashboard-top .eyebrow{
+  color:#b4d3bd;
+  font-size:12px;
+  letter-spacing:.14em;
+}
+body:has(#workspace) .dashboard-top .header-actions{align-self:center}
+body:has(#workspace) .dashboard-top .button-outline{
+  background:rgba(255,255,255,.94);
+  color:#1f2b25;
+  border-color:#fff;
+}
+body:has(#workspace) .stat-grid{gap:14px;margin-bottom:18px}
+body:has(#workspace) .stat-card,
+body:has(#workspace) .panel {
+  background:#fff;
+  border:1px solid var(--elveriq-border);
+  box-shadow:0 10px 28px rgba(20,42,30,.035);
+  border-radius:14px;
+}
+body:has(#workspace) .stat-card{padding:24px 22px}
+body:has(#workspace) .stat-card > span{color:#5f7167;font-size:13px}
+body:has(#workspace) .stat-card strong{font-size:32px;color:#17231e;font-weight:700}
+body:has(#workspace) .stat-card small{color:#60716a}
+body:has(#workspace) .panel{padding:24px}
+body:has(#workspace) .panel-title h2,
+body:has(#workspace) .panel-title h3{
+  font-weight:650;
+  font-size:17px;
+  color:#17251e;
+}
+body:has(#workspace) .section-title h2{font-size:24px;color:#17251e}
+body:has(#workspace) .demo-cta {
+  color:#17251e;
+  border:1px solid #d0e2d5;
+  background:#e6efe9;
+  border-radius:14px;
+}
+body:has(#workspace) .button{
+  font-weight:650;
+  border-radius:8px;
+  box-shadow:none;
+}
+body:has(#workspace) .table-wrap th{color:#64766b}
+body:has(#workspace) .table-wrap td{color:#2b3630}
+
+/* Login, registration, and invitation screens share a cinematic backdrop. */
+body:has(.auth-wrap),body:has(.auth-shell){background:#111a16}
+body:has(.auth-wrap) .auth-wrap,
+body:has(.auth-shell) .auth-shell {
+  max-width:none;
+  width:100%;
+  position:relative;
+  isolation:isolate;
+  display:grid;
+  place-items:center;
+  min-height:calc(100vh - 160px);
+  min-height:calc(100svh - 160px);
+  padding:56px 20px 72px;
+  background:#111915 url('/static/media/warehouse-receiving.webp') center center / cover no-repeat;
+}
+body:has(.auth-wrap) .auth-wrap::before,
+body:has(.auth-shell) .auth-shell::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:rgba(7,14,11,.68);
+}
+body:has(.auth-wrap) .auth-card,
+body:has(.auth-shell) .auth-card {
+  width:min(100%,470px);
+  border:1px solid rgba(221,232,223,.88);
+  background:#f8faf7;
+  box-shadow:0 36px 90px rgba(0,0,0,.34);
+  border-radius:16px;
+  padding:40px;
+}
+body:has(.auth-wrap) .auth-card h1,
+body:has(.auth-shell) .auth-card h1 {
+  font-weight:650;
+  font-size:36px;
+  line-height:40px;
+}
+body:has(.auth-wrap) .auth-card .eyebrow,
+body:has(.auth-shell) .auth-card .eyebrow {
+  font-size:12px;
+  color:#305947;
+  letter-spacing:.13em;
+}
+body:has(.auth-wrap) .auth-card .auth-symbol,
+body:has(.auth-shell) .auth-card .auth-symbol {
+  background:#e2ebe5;
+  color:#2f6049;
+  border-radius:8px;
+}
+body:has(.auth-wrap) .auth-card .stack-form label,
+body:has(.auth-shell) .auth-card .mini-form label {
+  color:#2f4037;
+  font-size:13px;
+}
+body:has(.auth-wrap) .auth-card input,
+body:has(.auth-shell) .auth-card input {
+  background:#fff;
+  border:1px solid #cfdad3;
+  min-height:44px;
+  border-radius:8px;
+}
+body:has(.auth-wrap) .auth-card .button,
+body:has(.auth-shell) .auth-card .button {
+  min-height:44px;
+  border-radius:8px;
+  font-weight:650;
+}
+body:has(.auth-wrap) .site-footer,
+body:has(.auth-shell) .site-footer{
+  margin-top:0;
+}
+
+@media(max-width:1100px){
+  body:has(#workspace) .workspace{grid-template-columns:218px minmax(0,1fr);gap:18px}
+  body:has(#workspace) .dashboard-top{padding:28px}
+}
+@media(max-width:760px){
+  body:not(:has(.cinematic-page)) .site-header {top:8px;width:calc(100% - 16px);padding:10px}
+  body:not(:has(.cinematic-page)) .top-nav{gap:10px}
+  body:not(:has(.cinematic-page)) .top-nav a{font-size:12px}
+  body:not(:has(.cinematic-page)) .top-nav .button{font-size:12px;padding:9px 10px}
+  body:has(#workspace) .workspace{display:block;margin-top:18px}
+  body:has(#workspace) .sidebar{position:static;max-height:none;min-height:0;padding:10px;margin-bottom:20px}
+  body:has(#workspace) .workspace-identity{min-height:112px}
+  body:has(#workspace) .sidebar-links{display:flex;flex-wrap:wrap;gap:6px}
+  body:has(#workspace) .side-link{width:auto;white-space:nowrap;padding:10px 12px}
+  body:has(#workspace) .dashboard-top{padding:22px;min-height:220px;align-items:flex-start;display:flex;flex-direction:column;justify-content:center;gap:18px}
+  body:has(#workspace) .dashboard-top h1{font-size:26px}
+  body:has(#workspace) .dashboard-top .header-actions{align-self:flex-start}
+  body:has(.auth-wrap) .auth-wrap,body:has(.auth-shell) .auth-shell{min-height:calc(100svh - 92px);padding:40px 16px 56px}
+  body:has(.auth-wrap) .auth-card,body:has(.auth-shell) .auth-card{padding:28px}
+}
+@media(max-width:440px){
+  body:has(#workspace) .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body:has(#workspace) .stat-card{padding:16px}
+  body:has(#workspace) .stat-card strong{font-size:26px}
+  body:has(#workspace) .panel{padding:16px}
+  body:not(:has(.cinematic-page)) .site-header .brand{font-size:16px}
+  body:not(:has(.cinematic-page)) .site-header .brand-mark{width:28px;height:28px;font-size:16px}
+  body:not(:has(.cinematic-page)) .top-nav a:first-child{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  body:has(#workspace) .side-link{transition:none}
+}

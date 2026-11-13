@@ -30,7 +30,7 @@ def create_app(db: Database | None = None, settings: Settings | None = None) -> 
         seed_demo(db)
         yield
 
-    app = FastAPI(title="Elveriq Warehouse Cloud", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Elveriq", version="0.1.0", lifespan=lifespan)
     app.state.db = db
     app.add_middleware(SessionMiddleware, secret_key=settings.secret,
                        same_site="lax", https_only=settings.production,
@@ -55,7 +55,7 @@ def create_app(db: Database | None = None, settings: Settings | None = None) -> 
 
     @app.get("/", response_class=HTMLResponse)
     def landing(request: Request):
-        return render(request, "landing.html", title="Elveriq | Warehouse Cloud")
+        return render(request, "landing.html", title="Elveriq | Warehouse Management")
 
     @app.get("/demo", response_class=HTMLResponse)
     def demo(request: Request):

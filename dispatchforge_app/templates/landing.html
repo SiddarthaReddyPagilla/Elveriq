@@ -1,33 +1,147 @@
 {% extends "base.html" %}
+{% block head %}
+  <meta name="theme-color" content="#0b0c0d">
+  <meta name="description" content="Elveriq is warehouse management software for independent operators. Explore inventory, receiving, transfers, orders, and audit history in one operational workspace.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Elveriq | Warehouse operations, connected">
+  <meta property="og:description" content="Inventory, receiving, transfers, and fulfillment across your warehouse operation.">
+  <meta property="og:url" content="https://elveriq.com/">
+  <meta property="og:image" content="https://elveriq.com/static/media/warehouse-hero.webp">
+  <link rel="preload" href="/static/media/warehouse-hero.webp" as="image" type="image/webp">
+  <link rel="stylesheet" href="/static/cinematic.css">
+  <script src="/static/cinematic.js" defer></script>
+{% endblock %}
+{% block skip_link %}<a class="skip-link" href="#main-content">Skip to content</a>{% endblock %}
 {% block content %}
-<section class="hero page-width">
-  <div class="hero-copy">
-    <span class="eyebrow"><span class="pulse-dot"></span> BUILT FOR INDEPENDENT WAREHOUSES</span>
-    <h1>Know your stock.<br><span>Run your warehouse.</span></h1>
-    <p>Products, inventory movements, scheduled orders and team operations — in one clear workspace. Start with a real workflow, not another spreadsheet.</p>
-    <div class="button-row"><a class="button" href="/demo">Explore the sample dashboard <span>↗</span></a><a class="button button-outline" href="/register">Create a workspace</a></div>
-    <p class="subtle small">Early-stage software preview. No credit card. Sample environment is read-only.</p>
+<div class="cinematic-page">
+  <section class="cinema-hero" aria-labelledby="hero-title">
+    <div class="cinema-hero-media" aria-hidden="true">
+      <img src="/static/media/warehouse-hero.webp" alt="" width="1600" height="800" fetchpriority="high" decoding="async" data-hero-image>
+    </div>
+    <div class="cinema-hero-scrim" aria-hidden="true"></div>
+    <div class="cinema-hero-shell">
+      <div class="cinema-hero-text" data-hero-copy>
+        <div class="cinema-overline"><span class="cinema-led"></span> Warehouse management software <span class="cinema-divider"></span> Elveriq</div>
+        <h1 id="hero-title" class="heading-1">Know what is in your warehouse.<br>Know what happens next.</h1>
+        <p class="cinema-lede">Bring inventory, purchasing, stock transfers, fulfillment, and audit history into one place. Built for the people responsible for keeping goods moving.</p>
+        <a class="cinema-button cinema-button-light" href="/demo">Explore the sample workspace <span aria-hidden="true">↗</span></a>
+        <p class="cinema-hero-note">Interactive preview with fictional warehouse data.</p>
+      </div>
+      <div class="cinema-hero-bottom" aria-hidden="true">
+        <div class="cinema-location-marker"><span>01 / 04</span> <span>WAREHOUSE OPERATIONS</span></div>
+        <div class="cinema-scroll-cue"><span class="cinema-scroll-line"></span> SCROLL TO EXPLORE</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="cinema-capability-strip" aria-label="Core product areas">
+    <span>01 <strong>Receiving</strong></span>
+    <span>02 <strong>Inventory</strong></span>
+    <span>03 <strong>Fulfillment</strong></span>
+    <span>04 <strong>Dispatch</strong></span>
   </div>
-  <div class="hero-preview">
-    <div class="preview-top"><span class="preview-brand">▦ &nbsp; Warehouse overview</span><span class="online-dot">● Demo data</span></div>
-    <p class="muted">Denton Sample Distribution</p>
-    <div class="preview-stats"><div><span>Product SKUs</span><strong>07</strong></div><div><span>Locations</span><strong>02</strong></div><div><span>Workflows</span><strong>05</strong></div></div>
-    <div class="preview-divider"></div>
-    <p class="preview-section-label">TODAY'S OPERATIONS</p>
-    <div class="preview-line"><span>↘ &nbsp; Incoming stock</span><strong>Track receipts</strong></div>
-    <div class="preview-line"><span>◷ &nbsp; Scheduled orders</span><strong>Reserve units</strong></div>
-    <div class="preview-line"><span>≡ &nbsp; Inventory changes</span><strong>Audit history</strong></div>
-  </div>
-</section>
-<section class="features page-width">
-  <div class="section-heading"><span class="eyebrow">THE FOUNDATION</span><h2>Warehouse operations, organized.</h2><p>One workflow from incoming stock to fulfilled orders.</p></div>
-  <div class="feature-grid">
-    <article class="feature-card"><div class="feature-icon">▦</div><h3>Inventory in one place</h3><p>Track products, SKUs, availability, reservations and low-stock items per location.</p></article>
-    <article class="feature-card"><div class="feature-icon">⇥</div><h3>Stock movement history</h3><p>Record receipts, adjustments and order changes with an append-only movement log.</p></article>
-    <article class="feature-card"><div class="feature-icon">♧</div><h3>Purchasing &amp; receipts</h3><p>Create supplier purchase orders, receive shipments in stages, and see what is still outstanding.</p></article>
-    <article class="feature-card"><div class="feature-icon">◷</div><h3>Scheduled fulfillment</h3><p>Accept future customer orders, reserve items, then fulfill or cancel safely.</p></article>
-    <article class="feature-card"><div class="feature-icon">⇄</div><h3>Import and export</h3><p>Bring in product catalogs from CSV and export live inventory records for review.</p></article>
-  </div>
-</section>
-<section class="closing-cta page-width"><div><span class="eyebrow">SEE THE WORKFLOW</span><h2>Try the warehouse sample.</h2><p>Explore fictional Denton warehouse data in a read-only public demo.</p></div><a class="button" href="/demo">Open sample ↗</a></section>
+
+  <section class="cinema-statement" aria-labelledby="statement-title">
+    <div class="cinema-statement-inner" data-reveal>
+      <p class="cinema-label">Built around the physical operation</p>
+      <h2 id="statement-title" data-word-reveal>Every unit has a location. Every movement has a record.</h2>
+      <p>A warehouse is a network of decisions, handoffs, and physical movements. Elveriq is being developed to make those operations easier to track from receiving through dispatch.</p>
+    </div>
+  </section>
+
+  <section class="cinema-journey" aria-labelledby="journey-title">
+    <div class="cinema-section-intro" data-reveal>
+      <p class="cinema-label">Inside the workflow</p>
+      <h2 id="journey-title" class="heading-2">Follow the work across the floor.</h2>
+      <p>From an inbound pallet to a fulfilled order, each stage has a record and a next action.</p>
+    </div>
+    <div class="cinema-journey-grid">
+      <div class="cinema-steps">
+        <article class="cinema-step" data-stage="0" data-reveal aria-labelledby="step-receiving-title">
+          <span class="cinema-step-index">01 <span>INBOUND</span></span>
+          <h3 id="step-receiving-title" class="heading-3">Receiving</h3>
+          <p>Keep a clear record of what has arrived. Connect supplier purchase orders with partial receipts and incoming inventory movements.</p>
+          <ul><li>Supplier purchase orders</li><li>Partial goods receiving</li><li>Inbound movement records</li></ul>
+          <img class="cinema-mobile-stage" src="/static/media/warehouse-receiving.webp" width="1400" height="788" alt="Photorealistic depiction of warehouse loading bays, pallets, and scanning operations" loading="lazy" decoding="async">
+        </article>
+        <article class="cinema-step" data-stage="1" data-reveal aria-labelledby="step-storage-title">
+          <span class="cinema-step-index">02 <span>STORAGE</span></span>
+          <h3 id="step-storage-title" class="heading-3">Inventory control</h3>
+          <p>Understand what is available by warehouse. Review counts, adjustments, stock movement history, and replenishment needs.</p>
+          <ul><li>Location stock visibility</li><li>Cycle counts and reconciliation</li><li>Replenishment planning</li></ul>
+          <img class="cinema-mobile-stage" src="/static/media/warehouse-storage.webp" width="1400" height="788" alt="Photorealistic warehouse racks filled with boxed inventory along a long storage aisle" loading="lazy" decoding="async">
+        </article>
+        <article class="cinema-step" data-stage="2" data-reveal aria-labelledby="step-picking-title">
+          <span class="cinema-step-index">03 <span>FULFILLMENT</span></span>
+          <h3 id="step-picking-title" class="heading-3">Picking and orders</h3>
+          <p>Reserve stock for orders, review what needs to be picked, and create structured picking lists for work on the floor.</p>
+          <ul><li>Customer order reservations</li><li>Picking list exports</li><li>Warehouse stock transfers</li></ul>
+          <img class="cinema-mobile-stage" src="/static/media/warehouse-picking.webp" width="1400" height="788" alt="Photorealistic parcel conveyors, packing desks, scanning equipment, and warehouse workers" loading="lazy" decoding="async">
+        </article>
+        <article class="cinema-step" data-stage="3" data-reveal aria-labelledby="step-dispatch-title">
+          <span class="cinema-step-index">04 <span>OUTBOUND</span></span>
+          <h3 id="step-dispatch-title" class="heading-3">Dispatch and traceability</h3>
+          <p>Record fulfillment and returns, preserve an auditable stock trail, and review upcoming work across warehouse operations.</p>
+          <ul><li>Fulfillment and returns</li><li>Inventory audit history</li><li>Operations planner</li></ul>
+          <img class="cinema-mobile-stage" src="/static/media/warehouse-hero.webp" width="1600" height="800" alt="Photorealistic warehouse dispatch doors and a freight trailer" loading="lazy" decoding="async">
+        </article>
+      </div>
+      <div class="cinema-stage-shell" aria-hidden="true">
+        <div class="cinema-stage-sticky" id="cinema-stage-sticky">
+          <div class="cinema-stage-photos">
+            <img class="cinema-stage-photo is-active" src="/static/media/warehouse-receiving.webp" width="1400" height="788" alt="" decoding="async" loading="lazy" data-stage-photo="0">
+            <img class="cinema-stage-photo" src="/static/media/warehouse-storage.webp" width="1400" height="788" alt="" decoding="async" loading="lazy" data-stage-photo="1">
+            <img class="cinema-stage-photo" src="/static/media/warehouse-picking.webp" width="1400" height="788" alt="" decoding="async" loading="lazy" data-stage-photo="2">
+            <img class="cinema-stage-photo cinema-stage-dispatch-photo" src="/static/media/warehouse-hero.webp" width="1600" height="800" alt="" decoding="async" loading="lazy" data-stage-photo="3">
+          </div>
+          <div class="cinema-stage-top"><span>ELVERIQ / WORKFLOW</span><span class="cinema-stage-dots"><i></i><i></i><i></i></span></div>
+          <div class="cinema-stage-bottom"><span data-scene-label>RECEIVING DOCK</span><span data-scene-counter>01 / 04</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cinema-workspace" aria-labelledby="workspace-title">
+    <div class="cinema-workspace-photo" aria-hidden="true">
+      <img src="/static/media/warehouse-picking.webp" width="1400" height="788" loading="lazy" decoding="async" alt="">
+    </div>
+    <div class="cinema-workspace-content" data-reveal>
+      <p class="cinema-label">The software behind the workflow</p>
+      <h2 id="workspace-title" class="heading-2">Operational information in one workspace.</h2>
+      <p>The warehouse imagery represents the work on the floor. The live sample shows the software: product records, supplier receipts, stock movements, transfers, orders, and reports.</p>
+      <div class="cinema-feature-list">
+        <div><span>01</span><strong>Inventory and availability</strong><p>Products, locations, stock levels, and movement history.</p></div>
+        <div><span>02</span><strong>Purchasing and receiving</strong><p>Supplier orders, inbound receipts, and outstanding quantities.</p></div>
+        <div><span>03</span><strong>Orders and movements</strong><p>Reservation, picking, fulfillment, transfers, and returns.</p></div>
+      </div>
+      <a href="/demo" class="cinema-text-link">Inspect the sample workspace <span aria-hidden="true">↗</span></a>
+    </div>
+  </section>
+
+  <section class="cinema-faq" aria-labelledby="faq-title">
+    <div class="cinema-faq-heading" data-reveal>
+      <p class="cinema-label">Product preview</p>
+      <h2 id="faq-title" class="heading-2">A clear view of what Elveriq does today.</h2>
+      <p>Elveriq is under active development. The public sample uses fictional records and is intended for evaluation, not business critical use.</p>
+    </div>
+    <div class="cinema-faq-items" data-reveal>
+      <details><summary>Who is Elveriq being built for?</summary><p>Independent warehouse operators, small distributors, wholesalers, and teams that need a clear record of stock and warehouse activity.</p></details>
+      <details><summary>What can I explore in the live sample?</summary><p>The sample workspace covers product inventory, supplier purchasing, receiving, order fulfillment, stock transfers, returns, and operational reporting.</p></details>
+      <details><summary>Does the public sample use real warehouse data?</summary><p>No. The sample uses fictional information. It is designed to show application workflows without exposing customer records.</p></details>
+      <details><summary>Can Elveriq manage multiple warehouse locations?</summary><p>The application models inventory by warehouse location and includes internal stock transfer workflows. We are continuing to validate reliability and deployment behavior.</p></details>
+      <details><summary>Is Elveriq ready for business critical inventory?</summary><p>Not yet. The hosted experience is an early software preview. Production readiness requires additional operational testing, security review, backup procedures, and deployment validation.</p></details>
+      <details><summary>What does it cost to explore the sample?</summary><p>The public sample is available without entering payment information. Commercial pricing has not been announced.</p></details>
+    </div>
+  </section>
+
+  <section class="cinema-final" aria-labelledby="final-title">
+    <div class="cinema-final-photo" aria-hidden="true"><img src="/static/media/warehouse-receiving.webp" width="1400" height="788" alt="" loading="lazy" decoding="async"></div>
+    <div class="cinema-final-inner" data-reveal>
+      <p class="cinema-label">Elveriq / Warehouse operations</p>
+      <h2 id="final-title" class="heading-2">See the operations behind the interface.</h2>
+      <p>Explore the current product in a sample warehouse workspace.</p>
+      <a class="cinema-button cinema-button-light" href="/demo">Explore the sample workspace <span aria-hidden="true">↗</span></a>
+    </div>
+  </section>
+</div>
 {% endblock %}
