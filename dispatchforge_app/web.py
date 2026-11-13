@@ -127,7 +127,7 @@ def create_app(db: Database | None = None, settings: Settings | None = None) -> 
             business = session.scalar(select(Business).where(Business.id == user.business_id))
             return render(request, "dashboard.html", title=f"{business.name} | Elveriq",
                           is_demo=False, workspace=business.name, slug=business.slug,
-                          role=user.role)
+                          role=user.role, user_id=user.id)
 
     @app.post("/logout")
     async def logout(request: Request):

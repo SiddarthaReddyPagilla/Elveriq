@@ -3,3 +3,16 @@
 @media(max-width:1100px){.stat-grid{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:repeat(2,1fr)}.order-fields{grid-template-columns:repeat(3,1fr)}.hero{gap:25px}.hero-preview{transform:none}.feature-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.page-width{padding-left:17px;padding-right:17px}.site-header{padding:13px 17px}.brand{font-size:17px}.top-nav{gap:11px}.top-nav>a:first-child{display:none}.top-nav a{font-size:11px}.hero{grid-template-columns:1fr;gap:25px;padding-top:50px;padding-bottom:40px}.hero-copy>p{font-size:15px}.hero-preview{padding:18px}.features{padding-top:35px}.feature-grid{grid-template-columns:1fr}.closing-cta{flex-direction:column;align-items:start}.workspace{display:block;margin-top:12px}.sidebar{position:static;min-height:0;margin-bottom:24px}.sidebar-links{display:flex;flex-wrap:wrap}.side-link{width:auto}.sidebar-bottom{margin-top:18px}.dashboard-top{align-items:start;flex-direction:column}.two-column{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.order-fields{grid-template-columns:1fr 1fr}.import-panel,.demo-cta{flex-direction:column;align-items:start}.stat-grid{gap:9px}.stat-card{padding:16px}.stat-card strong{font-size:26px}.auth-card{padding:25px}}
 @media(max-width:440px){.brand-cloud{display:none}.top-nav .button{padding:8px}.stat-grid,.order-fields{grid-template-columns:1fr}.button-row{flex-direction:column}.button-row .button{width:100%}}
+
+/* Warehouse execution workbench (Phase 1). */
+.execution-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
+.execution-fields label{display:grid;gap:7px;color:#42554e;font-size:12px;font-weight:760}
+.execution-stats{margin-bottom:18px}
+.task-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.task-actions button{white-space:nowrap}
+.status-queued{background:#f1f4f3;color:#50645b}
+.status-assigned{background:#e8f0ff;color:#2e5c97}
+.status-in_progress{background:#fff0d7;color:#9b670e}
+.status-completed{background:#e7f4ea;color:#1a7852}
+@media(max-width:1100px){.execution-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.execution-fields{grid-template-columns:1fr}}

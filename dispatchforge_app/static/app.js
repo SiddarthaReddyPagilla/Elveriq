@@ -7,6 +7,9 @@
   const suffix = demo ? '?demo=true' : '';
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
   let inventory = [], products = [], warehouses = [], orders = [], purchases = [];
+  let locations = [], placedStock = [], workTasks = [], assignees = [];
+  const currentUser = Number(root.dataset.userId || 0);
+  const canManageWork = role === 'owner' || role === 'manager';
 
   if (role !== 'owner') document.querySelectorAll('.owner-only').forEach(el => el.remove());
   const byId = id => document.getElementById(id);
@@ -34,16 +37,40 @@
     if (!response.ok) throw new Error(data.error || data.detail?.[0]?.msg || `Request failed (${response.status})`);
     return data;
   }
+  function refreshTaskBinOptions() {
+    const form = byId('task-form'); if (!form) return;
+    const kind = form.elements.kind.value;
+    const wid = Number(form.elements.warehouse_id.value);
+    const matching = locations.filter(b => b.warehouse_id === wid && b.active);
+    const source = form.elements.from_bin_id;
+    const dest = form.elements.to_bin_id;
+    const sourceOld = source.value;
+    const destOld = dest.value;
+    source.disabled = kind === 'putaway';
+    source.required = kind !== 'putaway';
+    source.innerHTML = `<option value="">${kind === 'putaway' ? 'Unlocated stock' : 'Choose a source bin'}</option>` +
+      matching.map(b => `<option value="${b.id}">${safe(b.code)}</option>`).join('');
+    if (matching.some(b => String(b.id) === sourceOld)) source.value = sourceOld;
+    dest.required = kind !== 'unlocate';
+    dest.disabled = kind === 'unlocate';
+    dest.innerHTML = kind === 'unlocate'
+      ? '<option value="">UNLOCATED staging pool</option>'
+      : '<option value="">Choose a destination bin</option>' + matching.map(b => `<option value="${b.id}">${safe(b.code)}</option>`).join('');
+    if (kind !== 'unlocate' && matching.some(b => String(b.id) === destOld)) dest.value = destOld;
+  }
   async function load() {
     try {
-      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows, transfers, counts, returns, replenishment, team, planning] = await Promise.all([
+      const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows, transfers, counts, returns, replenishment, team, planning, bins, binStocks, reconciliation, tasks, workerUsers] = await Promise.all([
         api('/overview'), api('/inventory'), api('/products'), api('/warehouses'),
         api('/orders'), api('/movements'), api('/suppliers'), api('/purchase-orders'),
         api('/transfers'), api('/cycle-counts'), api('/returns'), api('/replenishment'),
         role === 'owner' && !demo ? api('/staff') : Promise.resolve([]),
-        api('/operations/queue')
+        api('/operations/queue'),
+        api('/locations'), api('/locations/stock'), api('/locations/reconciliation'), api('/tasks'),
+        canManageWork && !demo ? api('/tasks/assignees') : Promise.resolve([])
       ]);
       inventory = stock; products = productRows; warehouses = warehouseRows; orders = orderRows; purchases = purchaseRows;
+      locations = bins; placedStock = binStocks; workTasks = tasks; assignees = workerUsers;
       const ids = {'stat-products': overview.products, 'stat-warehouses': overview.warehouses,
         'stat-stock': overview.on_hand, 'stat-reserved': overview.reserved,
         'stat-orders': overview.open_orders, 'stat-low': overview.low_stock,
@@ -81,6 +108,39 @@
         `<tr><td><strong>${safe(r.product)}</strong><small>${safe(r.sku)}</small></td><td>${safe(r.warehouse)}</td><td>${r.available}</td><td>${r.incoming}</td><td><strong>${r.suggested_quantity}</strong></td></tr>`));
       if (byId('staff-table')) byId('staff-table').innerHTML = table(['Email', 'Role', 'Action'], team.map(u =>
         `<tr><td>${safe(u.email)}</td><td>${rowStatus(u.role)}</td><td>${u.role === 'owner' ? '—' : `<button class="link-button" data-staff-id="${u.id}" data-role="${safe(u.role)}">Change role</button>`}</td></tr>`));
+      // Warehouse execution: putaway and relocations are movement of PLACEMENT,
+      // not additional stock receipts or stock accounting debits.
+      const metrics = {
+        'stat-bins': locations.length,
+        'stat-placed': reconciliation.reduce((sum, r) => sum + r.placed, 0),
+        'stat-unlocated': reconciliation.reduce((sum, r) => sum + r.unlocated, 0),
+        'stat-pending-putaway': reconciliation.reduce((sum, r) => sum + r.pending_putaway, 0),
+        'stat-task-queued': tasks.filter(t => t.status === 'queued').length,
+        'stat-task-assigned': tasks.filter(t => t.status === 'assigned').length,
+        'stat-task-progress': tasks.filter(t => t.status === 'in_progress').length,
+        'stat-task-completed': tasks.filter(t => t.status === 'completed').length
+      };
+      for (const [id, value] of Object.entries(metrics)) if (byId(id)) byId(id).textContent = value.toLocaleString();
+      byId('bin-table').innerHTML = table(['Warehouse','Bin code','Zone / Aisle','Rack / Shelf','Placed units','Capacity'],
+        locations.map(b => `<tr><td>${safe(b.warehouse)}</td><td><strong>${safe(b.code)}</strong></td><td>${safe(b.zone || '—')} / ${safe(b.aisle || '—')}</td><td>${safe(b.rack || '—')} / ${safe(b.shelf || '—')}</td><td>${b.placed_units}</td><td>${b.capacity_units ?? '—'}</td></tr>`));
+      byId('bin-stock-table').innerHTML = table(['Warehouse bin','SKU','Placed','Allocated to moves','Free in bin'],
+        placedStock.map(b => `<tr><td>${safe(b.bin_code)}</td><td><strong>${safe(b.sku)}</strong></td><td>${b.on_hand}</td><td>${b.committed_to_moves}</td><td>${b.available}</td></tr>`));
+      byId('unlocated-table').innerHTML = table(['Warehouse','SKU','On hand','In bins','Unlocated','Putaway pending'],
+        reconciliation.map(r => `<tr><td>${safe(r.warehouse)}</td><td>${safe(r.sku)}</td><td>${r.on_hand}</td><td>${r.placed}</td><td>${r.unlocated}</td><td>${r.pending_putaway}</td></tr>`));
+      byId('tasks-table').innerHTML = table(['Priority','Task','SKU / quantity','Source → target','Assigned to','Status','Actions'],
+        tasks.map(t => {
+          const active = ['queued','assigned','in_progress'].includes(t.status);
+          const owned = currentUser && currentUser === t.assigned_user_id;
+          const controls = demo ? '—' : `<span class="task-actions">
+            ${t.status === 'queued' ? `<button class="link-button" data-task-action="claim" data-task-id="${t.id}">Claim</button>` : ''}
+            ${t.status === 'assigned' && owned ? `<button class="link-button" data-task-action="start" data-task-id="${t.id}">Start</button>` : ''}
+            ${t.status === 'in_progress' && owned ? `<button class="link-button" data-task-action="scan" data-task-id="${t.id}">Scan</button>` : ''}
+            ${canManageWork && ['queued','assigned'].includes(t.status) ? `<button class="link-button" data-task-action="assign" data-task-id="${t.id}">Assign</button>` : ''}
+            ${canManageWork && active ? `<button class="link-button muted-link" data-task-action="cancel" data-task-id="${t.id}">Cancel</button>` : ''}
+            <button class="link-button muted-link" data-task-action="history" data-task-id="${t.id}">History</button>
+            </span>`;
+          return `<tr><td>P${t.priority}</td><td><strong>#${t.id}</strong><small>${safe(t.kind)}</small></td><td>${safe(t.sku)} × ${t.quantity}</td><td>${safe(t.from_bin || 'UNLOCATED')} → ${safe(t.to_bin)}</td><td>${t.assigned_user_id ?? 'Unassigned'}</td><td>${rowStatus(t.status)}</td><td>${controls}</td></tr>`;
+        }));
       document.querySelectorAll('.fulfilled-order-select').forEach(select => {
         select.innerHTML = orderRows.filter(o => o.status === 'fulfilled').map(o =>
           `<option value="${o.id}">#${o.id} · ${safe(o.customer_name)}</option>`).join('');
@@ -100,6 +160,7 @@
         select.innerHTML = products.map(p => `<option value="${safe(p.sku)}">${safe(p.name)} · ${safe(p.sku)}</option>`).join('');
         if (products.some(p => p.sku === old)) select.value = old;
       });
+      refreshTaskBinOptions();
     } catch (error) { notice(error.message, true); }
   }
   async function submit(id, path, build) {
@@ -250,6 +311,86 @@
         }
         await load();
       } catch (error) { notice(error.message, true); }
+    });
+    if (byId('bin-form')) submit('bin-form', '/locations', d => ({
+      warehouse_id:Number(d.get('warehouse_id')), code:d.get('code'),
+      zone:d.get('zone'), aisle:d.get('aisle'), rack:d.get('rack'), shelf:d.get('shelf'),
+      capacity_units:d.get('capacity_units') ? Number(d.get('capacity_units')) : null
+    }));
+    if (byId('task-form')) {
+      const taskForm = byId('task-form');
+      let pendingWork = null;
+      taskForm.elements.kind.addEventListener('change', refreshTaskBinOptions);
+      taskForm.elements.warehouse_id.addEventListener('change', refreshTaskBinOptions);
+      taskForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        const d = new FormData(taskForm);
+        const body = JSON.stringify({
+          kind:d.get('kind'), warehouse_id:Number(d.get('warehouse_id')),
+          sku:d.get('sku'), quantity:Number(d.get('quantity')),
+          from_bin_id:d.get('from_bin_id') ? Number(d.get('from_bin_id')) : null,
+          to_bin_id:d.get('to_bin_id') ? Number(d.get('to_bin_id')) : null,
+          priority:Number(d.get('priority')), note:d.get('note') || ''
+        });
+        if (!pendingWork || pendingWork.body !== body)
+          pendingWork = {body, key:crypto.randomUUID()};
+        const button=taskForm.querySelector('button[type="submit"]'); button.disabled=true;
+        try {
+          const saved=await api('/tasks',{method:'POST',body,
+            headers:{'Idempotency-Key':pendingWork.key}});
+          pendingWork=null;
+          notice(`Task #${saved.id} ${saved.replayed ? 'already registered' : 'created in work queue'}.`);
+          taskForm.reset(); await load();
+        } catch(error) {
+          notice(`${error.message}. Keep unchanged details if retrying after a connection failure.`,true);
+        } finally {button.disabled=false;}
+      });
+    }
+    const taskScanForm = byId('task-scan-form');
+    if (taskScanForm) taskScanForm.addEventListener('submit',async event => {
+      event.preventDefault();
+      const d=new FormData(taskScanForm);
+      try {
+        const result=await api(`/tasks/${Number(d.get('task_id'))}/complete`,{
+          method:'POST',body:JSON.stringify({scan_sku:d.get('scan_sku'),
+            scan_to_bin:d.get('scan_to_bin'), scan_from_bin:d.get('scan_from_bin') || null})});
+        notice(`Task #${result.id} ${result.replayed ? 'already confirmed' : 'verified and completed'}.`);
+        taskScanForm.reset(); await load();
+      } catch(error) {notice(error.message,true);}
+    });
+    byId('tasks-table').addEventListener('click',async event => {
+      const button=event.target.closest('[data-task-action]'); if (!button) return;
+      const id=Number(button.dataset.taskId), action=button.dataset.taskAction;
+      try {
+        if (action === 'scan') {
+          const t=workTasks.find(t=>t.id===id);
+          if (!taskScanForm || !t) return;
+          taskScanForm.elements.task_id.value=id;
+          taskScanForm.elements.scan_sku.value='';
+          taskScanForm.elements.scan_from_bin.value='';
+          taskScanForm.elements.scan_to_bin.value='';
+          taskScanForm.scrollIntoView({behavior:'smooth',block:'center'});
+          taskScanForm.elements.scan_sku.focus();
+          return;
+        }
+        if (action === 'history') {
+          const events=await api(`/tasks/${id}/events`);
+          window.alert(events.map(e=>`${e.created_at.slice(0,16)} · ${e.action} · operator #${e.actor_id}${e.detail ? ' · '+e.detail : ''}`).join('\n') || 'No events');
+          return;
+        }
+        if (action === 'cancel' && !window.confirm(`Cancel task #${id} and release reservations?`)) return;
+        let body;
+        if (action === 'assign') {
+          const choices=assignees.map(u=>`${u.id}: ${u.email} (${u.role})`).join('\n');
+          const answer=window.prompt(`Assign task #${id} to an employee ID. Leave blank to unassign.\n${choices}`);
+          if (answer===null) return;
+          if (answer.trim() && (!Number.isInteger(Number(answer)) || Number(answer)<1))
+            return notice('Enter a valid employee ID.',true);
+          body=JSON.stringify({assigned_user_id:answer.trim()?Number(answer):null});
+        }
+        await api(`/tasks/${id}/${action}`,{method:'POST',...(body?{body}:{})});
+        notice(`Task #${id} updated.`); await load();
+      } catch(error) {notice(error.message,true);}
     });
     byId('orders-table').addEventListener('click', async event => {
       const button = event.target.closest('[data-order]'); if (!button) return;

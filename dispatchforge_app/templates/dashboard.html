@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<div id="workspace" class="workspace page-width" data-demo="{{ 'true' if is_demo else 'false' }}" data-role="{{ role | default('demo') }}">
+<div id="workspace" class="workspace page-width" data-demo="{{ 'true' if is_demo else 'false' }}" data-role="{{ role | default('demo') }}" data-user-id="{{ user_id | default(0) }}">
   <aside class="sidebar">
     <div class="sidebar-label">WORKSPACE</div>
     <div class="workspace-identity"><span class="avatar">▦</span><div><strong>{{ workspace }}</strong><small>{{ 'Read-only sample' if is_demo else 'Private workspace' }}</small></div></div>
     <nav class="sidebar-links" aria-label="Warehouse navigation">
       <button class="side-link active" data-section="overview">◫ &nbsp; Overview</button>
       <button class="side-link" data-section="inventory">▣ &nbsp; Inventory</button>
+      <button class="side-link" data-section="locations">▤ &nbsp; Storage bins</button>
+      <button class="side-link" data-section="tasks">☷ &nbsp; Warehouse tasks</button>
       <button class="side-link" data-section="orders">◷ &nbsp; Scheduled orders</button>
       <button class="side-link" data-section="purchasing">♧ &nbsp; Purchasing &amp; receiving</button>
       <button class="side-link" data-section="transfers">↔ &nbsp; Transfers</button>
@@ -47,6 +49,64 @@
       <div class="panel import-panel owner-only"><div><h3>Import your catalog</h3><p>Upload CSV columns: <code>sku,name,price_cents,reorder_point,unit</code>. Existing SKUs are skipped; opening stock must be received separately.</p><a href="/static/sample-products.csv" download>Download sample CSV ↗</a></div><form id="import-form" class="inline-upload"><input aria-label="Select CSV file" type="file" name="file" accept=".csv,text/csv" required><button class="button" type="submit">Import CSV</button></form></div>
       {% endif %}
       <div class="panel"><div class="panel-title"><h3>Stock by location</h3><span id="inventory-count" class="muted small"></span></div><div id="inventory-table" class="table-wrap"></div></div>
+    </section>
+    <section class="section-view hidden" data-view="locations">
+      <div class="section-title"><div><h2>Warehouse storage locations</h2><p>Map physical zones, racks, shelves and scan-ready bin codes. Placed stock reconciles to the warehouse on-hand balance.</p></div></div>
+      <div class="stat-grid execution-stats">
+        <div class="stat-card"><span>Configured bins</span><strong id="stat-bins">—</strong><small>Physical scan locations</small></div>
+        <div class="stat-card"><span>Placed units</span><strong id="stat-placed">—</strong><small>Known physical bins</small></div>
+        <div class="stat-card"><span>Unlocated units</span><strong id="stat-unlocated">—</strong><small>Received, staged or not yet placed</small></div>
+        <div class="stat-card"><span>Pending putaway</span><strong id="stat-pending-putaway">—</strong><small>Reserved from unlocated inventory</small></div>
+      </div>
+      {% if not is_demo and role in ['owner','manager'] %}
+      <form id="bin-form" class="panel order-form"><h3>Register a new physical bin</h3>
+        <div class="execution-fields">
+          <label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label>
+          <label>Scannable bin code<input name="code" required maxlength="64" placeholder="A-03-R02-S01"></label>
+          <label>Zone<input name="zone" maxlength="60" placeholder="Z-A"></label>
+          <label>Aisle<input name="aisle" maxlength="40" placeholder="03"></label>
+          <label>Rack<input name="rack" maxlength="40" placeholder="R02"></label>
+          <label>Shelf<input name="shelf" maxlength="40" placeholder="S01"></label>
+          <label>Capacity (units, optional)<input name="capacity_units" type="number" min="1" placeholder="100"></label>
+        </div><button type="submit" class="button">Create storage bin</button>
+      </form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>Bin directory</h3></div><div id="bin-table" class="table-wrap"></div></div>
+      <div class="panel"><div class="panel-title"><h3>Actual stock by bin</h3></div><div id="bin-stock-table" class="table-wrap"></div></div>
+      <div class="panel"><div class="panel-title"><h3>Unlocated versus placed reconciliation</h3></div><div id="unlocated-table" class="table-wrap"></div></div>
+      <div class="tip-box">Warehouse inventory remains the accounting total. A putaway task assigns units to a bin; a move task changes bins; unlocate returns physically picked units to the unlocated/staging pool. No task here creates or destroys stock.</div>
+    </section>
+    <section class="section-view hidden" data-view="tasks">
+      <div class="section-title"><div><h2>Warehouse task center</h2><p>Create and assign work, claim it, scan source and destination codes, and confirm each movement with an audit trail.</p></div></div>
+      <div class="stat-grid execution-stats">
+        <div class="stat-card"><span>Queued work</span><strong id="stat-task-queued">—</strong><small>Waiting for an employee</small></div>
+        <div class="stat-card"><span>Assigned work</span><strong id="stat-task-assigned">—</strong><small>Ready to start</small></div>
+        <div class="stat-card"><span>In progress</span><strong id="stat-task-progress">—</strong><small>Awaiting scan confirmation</small></div>
+        <div class="stat-card"><span>Completed</span><strong id="stat-task-completed">—</strong><small>Verified executions</small></div>
+      </div>
+      {% if not is_demo and role in ['owner', 'manager'] %}
+      <form id="task-form" class="panel order-form"><h3>Release a warehouse task</h3>
+        <div class="execution-fields">
+          <label>Work type<select name="kind" id="task-kind"><option value="putaway">Putaway · unlocated → bin</option><option value="move">Move · bin → bin</option><option value="unlocate">Pick to staging · bin → unlocated</option></select></label>
+          <label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label>
+          <label>Product<select name="sku" class="sku-select" required></select></label>
+          <label>From bin<select name="from_bin_id" class="source-bin-select"><option value="">Unlocated stock</option></select></label>
+          <label>To bin<select name="to_bin_id" class="target-bin-select" required></select></label>
+          <label>Units<input name="quantity" type="number" min="1" max="1000000" value="1" required></label>
+          <label>Priority<select name="priority"><option value="1">1 · Urgent</option><option value="2">2 · High</option><option value="3" selected>3 · Normal</option><option value="4">4 · Low</option><option value="5">5 · Planned</option></select></label>
+          <label>Work note<input name="note" maxlength="250" placeholder="Receiving dock 2"></label>
+        </div><button class="button" type="submit">Create warehouse task</button><p class="muted small">New work enters the queue. Staff can claim it, or managers can assign an employee from the task list. Creation has a retry-safe operation key.</p>
+      </form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>Work queue</h3><span class="muted small">Latest 200 tasks</span></div><div id="tasks-table" class="table-wrap"></div></div>
+      {% if not is_demo %}
+      <form id="task-scan-form" class="panel order-form"><h3>Scan confirmation station</h3>
+        <p class="muted small">Claim and start the task above. Scan or type the exact product SKU and bin codes. For unlocate tasks, the destination code is <code>UNLOCATED</code>.</p>
+        <div class="execution-fields">
+          <label>Task ID<input name="task_id" type="number" min="1" required placeholder="Task #"></label>
+          <label>Scan SKU<input name="scan_sku" required maxlength="80" autocomplete="off" placeholder="PRODUCT-1"></label>
+          <label>Scan source bin (if applicable)<input name="scan_from_bin" maxlength="64" autocomplete="off" placeholder="A-01"></label>
+          <label>Scan destination bin<input name="scan_to_bin" required maxlength="64" autocomplete="off" placeholder="A-02 or UNLOCATED"></label>
+        </div><button class="button" type="submit">Verify scans &amp; complete</button>
+      </form>{% endif %}
     </section>
     <section class="section-view hidden" data-view="orders"><div class="section-title"><div><h2>Scheduled orders</h2><p>Reserve products today for future fulfillment without overselling.</p></div></div>
       {% if not is_demo %}<form class="panel order-form" id="order-form"><h3>Create a customer order</h3><div class="order-fields"><label>Customer / reference<input name="customer_name" required placeholder="Retail Customer Co."></label><label>Fulfillment date<input name="due_date" id="due-date" type="date" required></label><label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label><label>Product<select name="sku" class="sku-select" required></select></label><label>Quantity<input name="quantity" type="number" min="1" required value="1"></label></div><p class="small muted">Start with one SKU per order. The backend already supports multiple line items.</p><button class="button" type="submit">Reserve order</button></form>{% endif %}
