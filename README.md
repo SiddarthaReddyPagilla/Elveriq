@@ -1,3 +1,5 @@
+> **NEW: Phase 1 Warehouse Execution Development** — See [Master Build Plan](docs/ELVERIQ_MASTER_BUILD_PLAN.md), [Warehouse Execution API and limitations](docs/WAREHOUSE_EXECUTION.md), and [Safe Git/Release Guide](docs/TODAY_RELEASE_CHECKLIST.md). The full 300-feature competitor research is now versioned in [`docs/research/`](docs/research/README.md). This release adds physical warehouse bins, scan-confirmed putaway/move/unlocate tasks, a worker task center and reconciliation. Order-linked picking, carrier shipping and complete WMS parity remain future phases.
+
 # Elveriq Warehouse Cloud
 
 **A website-first warehouse operations SaaS prototype for independent distributors and small warehouses.**

@@ -1,0 +1,39 @@
+﻿source_id,vendor,title,url,scope_note
+S01,SAP,SAP EWM features,https://www.sap.com/canada/products/scm/extended-warehouse-management/features.html,Official feature overview; scope varies by deployment and license
+S02,SAP,SAP Learning: EWM processes,https://learning.sap.com/courses/exploring-business-processes-in-sap-ewm-for-sap-s-4hana-cloud-private-edition/introducing-sap-s4-hana-extended-warehouse-management,"Warehouse monitor, RF, VAS, labor, slotting, cross-docking"
+S03,Manhattan Associates,ActiveWarehouse platform and editions,https://www.manh.com/solutions/supply-chain-management-software/activewarehouse,"Inventory, labor, automation, yard; feature differences across editions"
+S04,Manhattan Associates,Supply Chain Execution 26.2,https://www.manh.com/releases/2026/waypoints-supply-chain-execution-26.2,"Unified warehouse, yard, labor, slotting and AI release capabilities"
+S05,Blue Yonder,Warehouse Management Solution,https://blueyonder.com/solutions/warehouse-management,"Warehouse execution, resource orchestration, slotting, robotics, analytics"
+S06,Blue Yonder,WMS FAQ,https://blueyonder.com/resources/blue-yonder-ai-powered-wms-unified-faq,"Features may vary by package, edition and release"
+S07,Blue Yonder,2026.2 cognitive execution release,https://blueyonder.com/release-announcements/2026-2-release/cognitive-solutions-for-execution,"Shift forecasts, labor insight, slotting heatmaps"
+S08,Oracle,Fusion Cloud Warehouse Management,https://www.oracle.com/scm/logistics/warehouse-management/,"Waving, cross docking, VAS, manufacturing and yard operations"
+S09,Oracle,WMS AI agent innovations,https://blogs.oracle.com/scm/log-ai-innovations-26a,Wave research and task prioritization agents
+S10,Infor,Infor WMS capability overview,https://www.infor.com/solutions/scm/warehouse-management-system,"Multi-owner, bin, wave, voice, 3PL billing, labor, 3D"
+S11,Infor,October 2026 supply chain AI agents,https://www.infor.com/blog/supply-chain-ai-agents-october-2026-release,Wave and slotting agents; release-specific
+S12,Infios,Infios WMS capabilities,https://www.infios.com/en/supply-chain-solutions/warehouse-management-systems,"Modular labor, yard, voice, WCS, robotics and execution"
+S13,Tecsys,Tecsys WMS,https://www.tecsys.com/solutions/warehouse-management,"Visual Logistics, warehouse tasks, replenishment and billing"
+S14,Deposco,Bright Warehouse WMS,https://deposco.com/solutions/supply-chain-execution/warehouse-management/,"Waved and waveless, ASN, scanning, shipping, automation"
+S15,Extensiv,3PL Warehouse Manager product,https://www.extensiv.com/3pl/products/3pl-warehouse-manager,"3PL billing, REST API, ASN, picking, scanning, lot/serial"
+S16,Extensiv,3PL solutions,https://www.extensiv.com/solutions/3pls,"Customer portal, SmartScan, rate shopping, analytics, dock"
+S17,Extensiv,3PL knowledge base,https://help.extensiv.com/en_US/3pl-warehouse-manager,"Operational submodules, shipping, EDI, 3PL billing and scanning"
+S18,ShipHero,Warehouse management software,https://www.shiphero.com/warehouse-management-software,"Client billing, portals, barcode verification and channel integrations"
+S19,Logiwa,Outbound operations,https://www.logiwa.com/solutions/fulfillment-of-orders-outbound-operations,"Pick/pack/ship, put-wall, many pick methods, integrations"
+S20,Logiwa,Digital warehouse software,https://www.logiwa.com/solutions/digital-warehouse-management-software,"Location rules, capacities, mobile scanners, e-commerce sync"
+S21,Odoo,Inventory detailed feature catalog,https://www.odoo.com/app/inventory-features,"Location, putaway, picking, lot/serial, FEFO, portals, replenishment"
+S22,Microsoft,Dynamics 365 Warehouse Management overview,https://learn.microsoft.com/en-us/dynamics365/supply-chain/warehousing/warehouse-management-overview,"Work rules, mobile scanning, load handling, label printing, MHAX"
+S23,Microsoft,Dynamics 365 SCM documentation,https://learn.microsoft.com/dynamics365/supply-chain,"Module overview including QA, transportation, mobile and planning"
+S24,NetSuite,NetSuite WMS features,https://www.netsuite.com/portal/products/erp/warehouse-fulfillment/wms.shtml,"Mobile WMS, smart counting, bins, waves"
+S25,NetSuite,NetSuite mobile WMS,https://www.netsuite.com/portal/products/erp/warehouse-fulfillment/mobile-warehouse-management.shtml,"Force scan verification, RF receiving, counting and picking"
+S26,Oracle NetSuite,Releasing orders to warehouse,https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1548078373.html,Wave release and pick-task tracking
+S27,Cin7,Cin7 Core WMS documentation,https://help.core.cin7.com/hc/en-us/articles/9034461577487-Introduction-to-Warehouse-Management-System-WMS,"Mobile picking, FIFO/FEFO validation, packing, counting, scanning"
+S28,Made4net,WMS core and extended capabilities,https://made4net.com/knowledge-center/warehouse-order-fulfillment-software-guide/,"Practical core vs. extended scope; cross-dock, WMS, labor, yard"
+S29,Made4net,Supply chain execution suite,https://made4net.com/,"WMS, 3PL, yard, labor, routing, proof of delivery"
+S30,Fishbowl,Advanced Warehouse,https://www.fishbowlinventory.com/warehouse-management/,"Multi-warehouse, mobile, 3PL, EDI, stock controls"
+S31,GS1 US,What is SSCC and logistics label,https://www.help.gs1us.org/barcodes-available-in-gs1-us-data-hub,SSCC is logistic-unit identity; not GTIN
+S32,OWASP,API Security Top 10 2023,https://owasp.org/projects/api-security-project,Object level and function level authorization risks
+S33,NIST,Digital Identity Guidelines 800-63B-4,https://csrc.nist.gov/pubs/sp/800/63/b/4/final,Authentication and authenticator management guidance
+S34,FDA,Food Traceability Rule and effective timetable,https://www.fda.gov/food/food-safety-modernization-act-fsma/fsma-final-rule-requirements-additional-traceability-records-certain-foods,Traceability for covered foods; enforcement timing jurisdiction dependent
+S35,SAP,What is a WMS?,https://www.sap.com/products/scm/extended-warehouse-management/what-is-a-wms.html,"Labor, yard, monitoring, KPIs and task interleaving"
+S36,NetSuite,Warehouse processing help,https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_N2317586.html,"Barcode, bin management, assembly, counts"
+S37,NetSuite,WMS overview,https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/chapter_156382517509.html,Availability/requirements of WMS SuiteApps; packaging caveat
+S38,Blue Yonder,2026.3 execution release,https://blueyonder.com/release-announcements/2026-3-release/cognitive-solutions-for-execution,Multi-vendor automation integration and explainable slotting
