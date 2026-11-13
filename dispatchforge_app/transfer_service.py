@@ -14,6 +14,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from .errors import DomainError
+from .warehouse_execution import protected_units_expr
 from .models import InventoryTransfer, Product, StockLevel, StockMovement, User, Warehouse
 
 
@@ -131,6 +132,7 @@ def transfer_stock(session: Session, business_id: int, source_id: int,
         StockLevel.id == stock_pairs[source_id],
         StockLevel.business_id == business_id,
         StockLevel.on_hand - StockLevel.reserved >= quantity,
+        StockLevel.on_hand - quantity >= protected_units_expr(),
     ).values(on_hand=StockLevel.on_hand - quantity))
     if source_update.rowcount != 1:
         raise DomainError("Not enough unreserved stock to transfer", 409)

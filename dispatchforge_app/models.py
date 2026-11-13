@@ -219,3 +219,89 @@ class StaffInvitation(Base):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WarehouseBin(Base):
+    """Physical location inside one warehouse (not an inventory accounting record)."""
+    __tablename__ = "warehouse_bins"
+    __table_args__ = (
+        UniqueConstraint("warehouse_id", "code", name="uq_warehouse_bin_code"),
+        CheckConstraint("capacity_units IS NULL OR capacity_units > 0", name="bin_capacity_positive"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    zone: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    aisle: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    rack: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    shelf: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    capacity_units: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BinStock(Base):
+    """Warehouse stock placed in a specific bin; subset of StockLevel.on_hand."""
+    __tablename__ = "bin_stocks"
+    __table_args__ = (
+        UniqueConstraint("bin_id", "product_id", name="uq_bin_product"),
+        CheckConstraint("on_hand >= 0", name="bin_stock_on_hand_nonnegative"),
+        CheckConstraint("allocated >= 0 AND allocated <= on_hand", name="bin_stock_allocated_within_hand"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    bin_id: Mapped[int] = mapped_column(ForeignKey("warehouse_bins.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+    on_hand: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    allocated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class WarehouseTask(Base):
+    """Guided putaway / relocation task with explicit work status."""
+    __tablename__ = "warehouse_tasks"
+    __table_args__ = (
+        UniqueConstraint("business_id", "idempotency_key", name="uq_warehouse_task_key"),
+        CheckConstraint("quantity > 0", name="warehouse_task_qty_positive"),
+        CheckConstraint("priority BETWEEN 1 AND 5", name="warehouse_task_priority_range"),
+        CheckConstraint("kind IN ('putaway', 'move', 'unlocate')", name="warehouse_task_kind_valid"),
+        CheckConstraint("(kind = 'putaway' AND from_bin_id IS NULL AND to_bin_id IS NOT NULL) "
+                        "OR (kind = 'move' AND from_bin_id IS NOT NULL AND to_bin_id IS NOT NULL "
+                        "AND from_bin_id <> to_bin_id) "
+                        "OR (kind = 'unlocate' AND from_bin_id IS NOT NULL AND to_bin_id IS NULL)",
+                        name="warehouse_task_locations_valid"),
+        CheckConstraint("status IN ('queued', 'assigned', 'in_progress', 'completed', 'canceled')",
+                        name="warehouse_task_status_valid"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    from_bin_id: Mapped[int | None] = mapped_column(ForeignKey("warehouse_bins.id"), nullable=True)
+    to_bin_id: Mapped[int | None] = mapped_column(ForeignKey("warehouse_bins.id"), nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="queued", nullable=False)
+    note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    completed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    scan_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class WarehouseTaskEvent(Base):
+    """Append-only accepted workflow transition history."""
+    __tablename__ = "warehouse_task_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("warehouse_tasks.id"), nullable=False, index=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    detail: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

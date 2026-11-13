@@ -4,6 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 from .errors import DomainError
 from .inventory_service import clean_text, get_stock
+from .warehouse_execution import protected_units_expr
 from .models import CustomerOrder, OrderLine, Product, StockLevel, StockMovement, Warehouse
 
 
@@ -82,11 +83,13 @@ def change_order_status(session: Session, business_id: int, order_id: int,
         result = session.execute(
             update(StockLevel).where(StockLevel.id == stock.id,
                                      StockLevel.business_id == business_id,
-                                     StockLevel.reserved >= line.quantity)
+                                     StockLevel.reserved >= line.quantity,
+                                     *( [StockLevel.on_hand - line.quantity >= protected_units_expr()]
+                                        if action == "fulfill" else []))
             .values(**values)
         )
         if result.rowcount != 1:
-            raise DomainError("Insufficient reserved inventory", 409)
+            raise DomainError("Reserved stock is insufficient or still physically placed in a bin; move it to unlocated stock before fulfillment", 409)
         session.add(StockMovement(business_id=business_id, warehouse_id=order.warehouse_id,
                                   product_id=line.product_id, user_id=user_id,
                                   kind=action, on_hand_delta=hand_delta,

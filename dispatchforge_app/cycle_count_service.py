@@ -2,6 +2,7 @@
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 from .errors import DomainError
+from .warehouse_execution import protected_units_expr
 from .inventory_service import get_stock
 from .models import CycleCount, Product, StockLevel, StockMovement, Warehouse, utcnow
 
@@ -47,7 +48,8 @@ def post_count(session: Session, business_id: int, count_id: int,
     result = session.execute(update(StockLevel).where(
         StockLevel.id == stock.id, StockLevel.business_id == business_id,
         StockLevel.on_hand == count.expected_on_hand,
-        StockLevel.reserved <= counted_on_hand).values(on_hand=counted_on_hand))
+        StockLevel.reserved <= counted_on_hand,
+        counted_on_hand >= protected_units_expr()).values(on_hand=counted_on_hand))
     if result.rowcount != 1:
         raise DomainError("Inventory changed or reserved stock exceeds counted stock; recount required", 409)
     session.add(StockMovement(business_id=business_id,

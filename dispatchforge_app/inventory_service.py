@@ -76,6 +76,7 @@ def apply_stock_delta(session: Session, business_id: int, warehouse_id: int, sku
     if change == 0 or abs(change) > 1_000_000:
         raise DomainError("Quantity change must be nonzero and within 1,000,000 units")
     product, stock = get_stock(session, business_id, warehouse_id, sku)
+    from .warehouse_execution import protected_units_expr
     # Conditional update stops reductions from using already-reserved inventory.
     result = session.execute(
         update(StockLevel).where(
@@ -83,6 +84,7 @@ def apply_stock_delta(session: Session, business_id: int, warehouse_id: int, sku
             StockLevel.business_id == business_id,
             StockLevel.on_hand + change >= StockLevel.reserved,
             StockLevel.on_hand + change >= 0,
+            StockLevel.on_hand + change >= protected_units_expr(),
         ).values(on_hand=StockLevel.on_hand + change)
     )
     if result.rowcount != 1:

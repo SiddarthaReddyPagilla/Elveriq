@@ -25,6 +25,9 @@ from .returns_service import restock_return, list_returns
 from .staff_service import (create_invitation, accept_invitation, staff_members, change_staff_role)
 from .audit_service import audit_stock
 from .operations_service import operations_queue
+from .warehouse_execution import (create_bin, list_bins, list_bin_stock, location_summary,
+    create_task, list_tasks, task_events, assign_task, claim_task, start_task,
+    cancel_task, complete_task)
 
 router = APIRouter(prefix="/api")
 
@@ -123,6 +126,38 @@ class TransferIn(BaseModel):
     sku: str = Field(min_length=1, max_length=80)
     quantity: int = Field(ge=1, le=1_000_000)
     note: str = Field(default="", max_length=250)
+
+
+class BinIn(BaseModel):
+    warehouse_id: int = Field(gt=0)
+    code: str = Field(min_length=1, max_length=64)
+    zone: str = Field(default="", max_length=60)
+    aisle: str = Field(default="", max_length=40)
+    rack: str = Field(default="", max_length=40)
+    shelf: str = Field(default="", max_length=40)
+    capacity_units: int | None = Field(default=None, ge=1, le=10_000_000)
+
+
+class TaskIn(BaseModel):
+    warehouse_id: int = Field(gt=0)
+    sku: str = Field(min_length=1, max_length=80)
+    kind: str
+    to_bin_id: int | None = Field(default=None, gt=0)
+    from_bin_id: int | None = Field(default=None, gt=0)
+    quantity: int = Field(ge=1, le=1_000_000)
+    priority: int = Field(default=3, ge=1, le=5)
+    note: str = Field(default="", max_length=250)
+    assigned_user_id: int | None = Field(default=None, gt=0)
+
+
+class TaskAssignIn(BaseModel):
+    assigned_user_id: int | None = Field(default=None, gt=0)
+
+
+class TaskScanIn(BaseModel):
+    scan_sku: str = Field(min_length=1, max_length=80)
+    scan_to_bin: str = Field(min_length=1, max_length=64)
+    scan_from_bin: str | None = Field(default=None, max_length=64)
 
 
 class OrderItemIn(BaseModel):
@@ -491,6 +526,126 @@ def cancel_purchase(order_id: int, request: Request,
     order = cancel_purchase_order(session, actor.business_id, order_id)
     session.commit()
     return {"id": order.id, "status": order.status}
+
+
+# Warehouse execution phase 1: tenant-scoped bins, stock placement and work tasks.
+@router.get("/locations")
+def locations(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+              demo: bool = False, session: Session = Depends(get_db)):
+    return list_bins(session, read_access(request, session, demo), warehouse_id)
+
+
+@router.get("/locations/stock")
+def location_stock(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+                   demo: bool = False, session: Session = Depends(get_db)):
+    return list_bin_stock(session, read_access(request, session, demo), warehouse_id)
+
+
+@router.get("/locations/reconciliation")
+def location_reconciliation(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+                            demo: bool = False, session: Session = Depends(get_db)):
+    return location_summary(session, read_access(request, session, demo), warehouse_id)
+
+
+@router.post("/locations", status_code=201)
+def add_location(payload: BinIn, request: Request, x_csrf_token: str = Header(default=""),
+                 session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {"owner", "manager"})
+    bin_row = create_bin(session, actor.business_id, payload.warehouse_id, payload.code,
+                         payload.zone, payload.aisle, payload.rack, payload.shelf, payload.capacity_units)
+    session.commit()
+    return {"id": bin_row.id, "code": bin_row.code, "warehouse_id": bin_row.warehouse_id}
+
+
+@router.get("/tasks")
+def warehouse_tasks(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+                    demo: bool = False, session: Session = Depends(get_db)):
+    return list_tasks(session, read_access(request, session, demo), warehouse_id)
+
+
+@router.get("/tasks/assignees")
+def task_assignees(request: Request, session: Session = Depends(get_db)):
+    actor = actor_from_session(session, request.session)
+    require_role(actor, {"owner", "manager"})
+    from .models import User
+    return [{"id": u.id, "email": u.email, "role": u.role} for u in session.scalars(
+        select(User).where(User.business_id == actor.business_id,
+                           User.role.in_(("owner", "manager", "staff"))).order_by(User.email))]
+
+
+@router.get("/tasks/{task_id}/events")
+def warehouse_task_events(task_id: int, request: Request, demo: bool = False,
+                          session: Session = Depends(get_db)):
+    return task_events(session, read_access(request, session, demo), task_id)
+
+
+@router.post("/tasks", status_code=201)
+def add_task(payload: TaskIn, request: Request, idempotency_key: str = Header(default=""),
+             x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {"owner", "manager"})
+    task, replayed = create_task(session, actor.business_id, payload.warehouse_id,
+        payload.sku, payload.kind, payload.to_bin_id, payload.quantity, actor.id,
+        payload.from_bin_id, payload.assigned_user_id, payload.priority, payload.note,
+        idempotency_key)
+    session.commit()
+    return {"id": task.id, "status": task.status, "replayed": replayed}
+
+
+@router.post("/tasks/{task_id}/assign")
+def set_task_assignee(task_id: int, payload: TaskAssignIn, request: Request,
+                      x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {"owner", "manager"})
+    task = assign_task(session, actor.business_id, task_id, actor.id, payload.assigned_user_id)
+    session.commit()
+    return {"id": task.id, "status": task.status, "assigned_user_id": task.assigned_user_id}
+
+
+@router.post("/tasks/{task_id}/claim")
+def claim_work(task_id: int, request: Request, x_csrf_token: str = Header(default=""),
+               session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    task = claim_task(session, actor.business_id, task_id, actor.id)
+    session.commit()
+    return {"id": task.id, "status": task.status}
+
+
+@router.post("/tasks/{task_id}/start")
+def begin_work(task_id: int, request: Request, x_csrf_token: str = Header(default=""),
+               session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    task = start_task(session, actor.business_id, task_id, actor.id)
+    session.commit()
+    return {"id": task.id, "status": task.status}
+
+
+@router.post("/tasks/{task_id}/complete")
+def finish_work(task_id: int, payload: TaskScanIn, request: Request,
+                x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    try:
+        task, replayed = complete_task(session, actor.business_id, task_id,
+            actor.id, payload.scan_sku, payload.scan_to_bin, payload.scan_from_bin)
+    except DomainError as error:
+        # Save rejected scan audit WITHOUT stock changes: the service only adds
+        # an event before raising this exact validation error.
+        if error.message.startswith("Scan verification failed"):
+            session.commit()
+        raise
+    session.commit()
+    return {"id": task.id, "status": task.status, "replayed": replayed}
+
+
+@router.post("/tasks/{task_id}/cancel")
+def cancel_work(task_id: int, request: Request, x_csrf_token: str = Header(default=""),
+                session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {"owner", "manager"})
+    task = cancel_task(session, actor.business_id, task_id, actor.id)
+    session.commit()
+    return {"id": task.id, "status": task.status}
 
 
 @router.get("/health")
