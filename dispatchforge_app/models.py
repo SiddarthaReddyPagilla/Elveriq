@@ -456,3 +456,21 @@ class InboundNoticeLine(Base):
     expected: Mapped[int] = mapped_column(Integer, nullable=False)
     accepted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     damaged: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+class InboundReceipt(Base):
+    """Durable disposition with globally unique tenant retry key."""
+    __tablename__ = "inbound_receipts"
+    __table_args__ = (UniqueConstraint("business_id", "idempotency_key", name="uq_inbound_receipt_key"),
+        CheckConstraint("accepted >= 0 AND damaged >= 0 AND accepted + damaged > 0", name="inbound_receipt_positive"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    notice_id: Mapped[int] = mapped_column(ForeignKey("inbound_notices.id"), nullable=False, index=True)
+    notice_line_id: Mapped[int] = mapped_column(ForeignKey("inbound_notice_lines.id"), nullable=False)
+    accepted: Mapped[int] = mapped_column(Integer, nullable=False)
+    damaged: Mapped[int] = mapped_column(Integer, nullable=False)
+    scan_sku: Mapped[str] = mapped_column(String(80), nullable=False)
+    damage_note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
