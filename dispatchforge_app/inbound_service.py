@@ -228,3 +228,21 @@ def list_notices(session: Session, bid: int, warehouse_id: int | None = None):
             'damaged': sum(x['damaged'] for x in items),
             'short': sum(x['short'] for x in items)})
     return result
+
+def receipt_history(session: Session, bid: int, notice_id: int):
+    _notice(session, bid, notice_id)
+    receipts = session.scalars(select(InboundReceipt).where(
+        InboundReceipt.business_id == bid, InboundReceipt.notice_id == notice_id)
+        .order_by(InboundReceipt.id.desc()).limit(200)).all()
+    return [{'id': r.id, 'line_id': r.notice_line_id, 'scan_sku': r.scan_sku,
+             'accepted': r.accepted, 'damaged': r.damaged, 'damage_note': r.damage_note,
+             'actor_id': r.actor_id, 'created_at': r.created_at.isoformat()}
+            for r in receipts]
+
+
+def notice_events(session: Session, bid: int, notice_id: int):
+    _notice(session, bid, notice_id)
+    return [{'action': e.action, 'note': e.note, 'actor_id': e.actor_id,
+             'created_at': e.created_at.isoformat()} for e in session.scalars(
+        select(InboundNoticeEvent).where(InboundNoticeEvent.business_id == bid,
+        InboundNoticeEvent.notice_id == notice_id).order_by(InboundNoticeEvent.id))]
