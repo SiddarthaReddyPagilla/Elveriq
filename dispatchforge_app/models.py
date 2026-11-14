@@ -334,3 +334,90 @@ class BinCycleCount(Base):
     posted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OutboundPick(Base):
+    """Order-specific bin reservation; picked units remain in the warehouse ledger until dispatch."""
+    __tablename__ = "outbound_picks"
+    __table_args__ = (
+        UniqueConstraint("business_id", "idempotency_key", name="uq_outbound_pick_key"),
+        CheckConstraint("quantity > 0", name="outbound_pick_qty_positive"),
+        CheckConstraint("status IN ('queued', 'assigned', 'in_progress', 'picked', 'packed', 'shipped', 'canceled')", name="outbound_pick_status_valid"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("customer_orders.id"), nullable=False, index=True)
+    order_line_id: Mapped[int] = mapped_column(ForeignKey("order_lines.id"), nullable=False)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+    bin_id: Mapped[int] = mapped_column(ForeignKey("warehouse_bins.id"), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="queued", nullable=False)
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    picked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    scan_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    picked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OutboundPickEvent(Base):
+    """Durable worker events for outbound operations, including rejected scans."""
+    __tablename__ = "outbound_pick_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    pick_id: Mapped[int] = mapped_column(ForeignKey("outbound_picks.id"), nullable=False, index=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    detail: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OutboundCarton(Base):
+    """Scannable carton for one outbound customer order."""
+    __tablename__ = "outbound_cartons"
+    __table_args__ = (UniqueConstraint("business_id", "code", name="uq_outbound_carton_code"),
+        CheckConstraint("status IN ('open', 'sealed', 'shipped')", name="outbound_carton_status_valid"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("customer_orders.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(12), default="open", nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    sealed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    sealed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OutboundCartonItem(Base):
+    """One whole verified pick may be packed once, into exactly one carton."""
+    __tablename__ = "outbound_carton_items"
+    __table_args__ = (UniqueConstraint("pick_id", name="uq_carton_item_pick"),
+        CheckConstraint("quantity > 0", name="outbound_carton_item_qty_positive"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    carton_id: Mapped[int] = mapped_column(ForeignKey("outbound_cartons.id"), nullable=False, index=True)
+    pick_id: Mapped[int] = mapped_column(ForeignKey("outbound_picks.id"), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    packed_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OutboundShipment(Base):
+    """Exactly one final goods issue per customer order; not a purchased carrier label."""
+    __tablename__ = "outbound_shipments"
+    __table_args__ = (UniqueConstraint("order_id", name="uq_shipment_order"),
+        UniqueConstraint("business_id", "idempotency_key", name="uq_shipment_key"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("customer_orders.id"), nullable=False)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    carrier: Mapped[str] = mapped_column(String(80), nullable=False)
+    tracking_reference: Mapped[str] = mapped_column(String(120), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    shipped_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    shipped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
