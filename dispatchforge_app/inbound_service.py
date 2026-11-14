@@ -88,3 +88,17 @@ def create_notice(session: Session, bid: int, po_id: int, reference: str,
     _event(session, notice, actor_id, 'planned', f'{len(items)} PO lines')
     session.flush()
     return notice
+
+def arrive_notice(session: Session, bid: int, notice_id: int, actor_id: int):
+    notice = _notice(session, bid, notice_id, lock=True)
+    if notice.status == 'arrived':
+        return notice, True
+    if notice.status != 'planned':
+        raise DomainError('Only planned ASNs can arrive', 409)
+    if session.execute(update(InboundNotice).where(InboundNotice.id == notice_id,
+        InboundNotice.business_id == bid, InboundNotice.status == 'planned')
+        .values(status='arrived', arrived_by=actor_id, arrived_at=utcnow())).rowcount != 1:
+        raise DomainError('ASN arrival state changed', 409)
+    _event(session, notice, actor_id, 'arrived', f'Dock {notice.dock or "unassigned"}')
+    session.refresh(notice)
+    return notice, False
