@@ -8,6 +8,7 @@
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
   let inventory = [], products = [], warehouses = [], orders = [], purchases = [];
   let locations = [], placedStock = [], workTasks = [], assignees = [];
+  let outboundPicks = [], outboundCartons = [], outboundShipments = [], outboundLines = [];
   const currentUser = Number(root.dataset.userId || 0);
   const canManageWork = role === 'owner' || role === 'manager';
 
@@ -68,6 +69,64 @@
       choices.map(bin => `<option value="${bin.id}">${safe(bin.code)}</option>`).join('');
     if (choices.some(bin => String(bin.id) === old)) select.value = old;
   }
+
+  async function refreshOutboundOptions() {
+    if (demo || !byId('out-carton-form')) return;
+    const choices = orders.filter(o => o.status === 'reserved');
+    document.querySelectorAll('.out-order-select, #out-plan-order').forEach(select => {
+      const previous = select.value;
+      select.innerHTML = choices.map(o => `<option value="${o.id}">#${o.id} · ${safe(o.customer_name)}</option>`).join('');
+      if (choices.some(o => String(o.id) === previous)) select.value = previous;
+    });
+    await refreshOutboundLines();
+  }
+  async function refreshOutboundLines() {
+    const orderId = Number(byId('out-plan-order')?.value);
+    const lineSelect = byId('out-plan-line');
+    if (!orderId || !lineSelect) return;
+    const previous = lineSelect.value;
+    outboundLines = await api(`/outbound/orders/${orderId}/lines`);
+    lineSelect.innerHTML = outboundLines.map(l => `<option value="${l.order_line_id}">${safe(l.sku)} · ${l.planned}/${l.quantity} planned</option>`).join('');
+    if (outboundLines.some(l => String(l.order_line_id) === previous)) lineSelect.value = previous;
+    refreshOutboundBins();
+  }
+  function refreshOutboundBins() {
+    const order = orders.find(o => o.id === Number(byId('out-plan-order')?.value));
+    const line = outboundLines.find(l => l.order_line_id === Number(byId('out-plan-line')?.value));
+    const select = byId('out-plan-bin');
+    if (!select) return;
+    const previous = select.value;
+    const bins = placedStock.filter(b => b.warehouse_id === order?.warehouse_id &&
+      b.sku === line?.sku && b.available > 0 && locations.some(l => l.id === b.bin_id && l.active));
+    select.innerHTML = bins.map(b => `<option value="${b.bin_id}">${safe(b.bin_code)} · ${b.available} free</option>`).join('');
+    if (bins.some(b => String(b.bin_id) === previous)) select.value = previous;
+  }
+  function renderOutbound() {
+    if (demo || !byId('out-picks-table')) return;
+    const stats = {
+      'out-stat-open': outboundPicks.filter(p => ['queued','assigned','in_progress'].includes(p.status)).length,
+      'out-stat-staged': outboundPicks.filter(p => ['picked','packed'].includes(p.status)).reduce((n,p) => n+p.quantity,0),
+      'out-stat-sealed': outboundCartons.filter(c => c.status === 'sealed').length,
+      'out-stat-shipped': outboundShipments.length
+    };
+    for (const [id, value] of Object.entries(stats)) byId(id).textContent = value.toLocaleString();
+    byId('out-picks-table').innerHTML = table(['Order / Pick','SKU','Source bin','Units','Worker','Status','Actions'],
+      outboundPicks.map(p => {
+        const owned = currentUser === p.assigned_user_id;
+        return `<tr><td><strong>Order #${p.order_id}</strong><small>Pick #${p.id}</small></td><td>${safe(p.sku)}</td><td>${safe(p.bin_code)}</td><td>${p.quantity}</td><td>${p.assigned_user_id ?? '—'}</td><td>${rowStatus(p.status)}</td><td><span class="task-actions">
+          ${p.status === 'queued' ? `<button class="link-button" data-out-pick="${p.id}" data-out-action="claim">Claim</button>` : ''}
+          ${p.status === 'assigned' && owned ? `<button class="link-button" data-out-pick="${p.id}" data-out-action="start">Start</button>` : ''}
+          ${p.status === 'in_progress' && owned ? `<button class="link-button" data-out-pick="${p.id}" data-out-action="scan">Scan</button>` : ''}
+          ${p.status === 'picked' ? `<button class="link-button" data-out-pick="${p.id}" data-out-action="pack">Pack</button>` : ''}
+          ${canManageWork && ['queued','assigned','in_progress'].includes(p.status) ? `<button class="link-button muted-link" data-out-pick="${p.id}" data-out-action="cancel">Cancel</button>` : ''}
+          <button class="link-button muted-link" data-out-pick="${p.id}" data-out-action="events">History</button></span></td></tr>`;
+      }));
+    byId('out-cartons-table').innerHTML = table(['Carton','Order','Contents','Status','Action'], outboundCartons.map(c =>
+      `<tr><td><strong>${safe(c.code)}</strong><small>ID #${c.id}</small></td><td>#${c.order_id}</td><td>${c.items.map(i => `${safe(i.sku)} × ${i.quantity}`).join('<br>') || 'Empty'}</td><td>${rowStatus(c.status)}</td><td><span class="task-actions"><button class="link-button" data-out-carton="${c.id}" data-out-carton-action="select">Select</button>${c.status === 'open' && c.items.length ? `<button class="link-button" data-out-carton="${c.id}" data-out-carton-action="seal">Seal</button>` : ''}</span></td></tr>`));
+    byId('out-shipments-table').innerHTML = table(['Shipment','Order','Carrier','Reference','Shipped at'],
+      outboundShipments.map(s => `<tr><td>#${s.id}</td><td>#${s.order_id}</td><td>${safe(s.carrier)}</td><td>${safe(s.tracking_reference)}</td><td>${safe(s.shipped_at.slice(0,16).replace('T',' '))}</td></tr>`));
+  }
+
   async function load() {
     try {
       const [overview, stock, productRows, warehouseRows, orderRows, movementRows, supplierRows, purchaseRows, transfers, counts, binCounts, returns, replenishment, team, planning, bins, binStocks, reconciliation, tasks, workerUsers] = await Promise.all([
@@ -79,6 +138,8 @@
         api('/locations'), api('/locations/stock'), api('/locations/reconciliation'), api('/tasks'),
         canManageWork && !demo ? api('/tasks/assignees') : Promise.resolve([])
       ]);
+      if (!demo) [outboundPicks, outboundCartons, outboundShipments] = await Promise.all([
+        api('/outbound/picks'), api('/outbound/cartons'), api('/outbound/shipments')]);
       inventory = stock; products = productRows; warehouses = warehouseRows; orders = orderRows; purchases = purchaseRows;
       locations = bins; placedStock = binStocks; workTasks = tasks; assignees = workerUsers;
       const ids = {'stat-products': overview.products, 'stat-warehouses': overview.warehouses,
@@ -94,7 +155,7 @@
       byId('inventory-table').innerHTML = table(['Product / SKU', 'Location', 'On hand', 'Reserved', 'Available', 'Reorder at'], stock.map(x =>
         `<tr><td><strong>${safe(x.name)}</strong><small>${safe(x.sku)} · ${money(x.price_cents)}</small></td><td>${safe(x.warehouse)}</td><td>${x.on_hand}</td><td>${x.reserved}</td><td><strong class="${x.low_stock ? 'low-text' : ''}">${x.available}</strong></td><td>${x.reorder_point}</td></tr>`));
       byId('orders-table').innerHTML = table(['Order', 'Customer', 'Items', 'Due', 'Status', ''], orderRows.map(o =>
-        `<tr><td>#${o.id}</td><td><strong>${safe(o.customer_name)}</strong></td><td>${o.items.map(i => `${safe(i.sku)} × ${i.quantity}`).join('<br>')}</td><td>${safe(o.due_date)}</td><td>${rowStatus(o.status)}</td><td>${!demo ? `<a class="link-button" href="/api/orders/${o.id}/pick-list.csv">Pick list CSV</a> ` : ''}${!demo && o.status === 'reserved' ? `<button class="link-button" data-order="${o.id}" data-action="fulfill">Fulfill</button> <button class="link-button muted-link" data-order="${o.id}" data-action="cancel">Cancel</button>` : '—'}</td></tr>`));
+        `<tr><td>#${o.id}</td><td><strong>${safe(o.customer_name)}</strong></td><td>${o.items.map(i => `${safe(i.sku)} × ${i.quantity}`).join('<br>')}</td><td>${safe(o.due_date)}</td><td>${rowStatus(o.status)}</td><td>${!demo ? `<a class="link-button" href="/api/orders/${o.id}/pick-list.csv">Pick list CSV</a> ` : ''}${!demo && o.status === 'reserved' && !outboundPicks.some(p => p.order_id === o.id && p.status !== 'canceled') ? `<button class="link-button" data-order="${o.id}" data-action="fulfill">Fulfill</button> <button class="link-button muted-link" data-order="${o.id}" data-action="cancel">Cancel</button>` : '—'}</td></tr>`));
       byId('movements-table').innerHTML = table(['Time', 'Product', 'Location', 'Action', 'On hand Δ', 'Reserved Δ'], movementRows.map(m =>
         `<tr><td>${safe(m.created_at.slice(0, 16).replace('T', ' '))}</td><td>${safe(m.sku)}</td><td>${safe(m.warehouse)}</td><td>${safe(m.kind)}</td><td>${m.on_hand_delta > 0 ? '+' : ''}${m.on_hand_delta}</td><td>${m.reserved_delta > 0 ? '+' : ''}${m.reserved_delta}</td></tr>`));
       byId('suppliers-table').innerHTML = table(['Supplier', 'Contact'], supplierRows.map(s =>
@@ -137,8 +198,8 @@
         locations.map(b => `<tr><td>${safe(b.warehouse)}</td><td><strong>${safe(b.code)}</strong></td><td>${safe(b.zone || '—')} / ${safe(b.aisle || '—')}</td><td>${safe(b.rack || '—')} / ${safe(b.shelf || '—')}</td><td>${b.placed_units}</td><td>${b.capacity_units ?? '—'}</td></tr>`));
       byId('bin-stock-table').innerHTML = table(['Warehouse bin','SKU','Placed','Allocated to moves','Free in bin'],
         placedStock.map(b => `<tr><td>${safe(b.bin_code)}</td><td><strong>${safe(b.sku)}</strong></td><td>${b.on_hand}</td><td>${b.committed_to_moves}</td><td>${b.available}</td></tr>`));
-      byId('unlocated-table').innerHTML = table(['Warehouse','SKU','On hand','In bins','Unlocated','Putaway pending'],
-        reconciliation.map(r => `<tr><td>${safe(r.warehouse)}</td><td>${safe(r.sku)}</td><td>${r.on_hand}</td><td>${r.placed}</td><td>${r.unlocated}</td><td>${r.pending_putaway}</td></tr>`));
+      byId('unlocated-table').innerHTML = table(['Warehouse','SKU','On hand','In bins','Unlocated','Putaway pending','Order staged','Free unlocated'],
+        reconciliation.map(r => `<tr><td>${safe(r.warehouse)}</td><td>${safe(r.sku)}</td><td>${r.on_hand}</td><td>${r.placed}</td><td>${r.unlocated}</td><td>${r.pending_putaway}</td><td>${r.staged_outbound ?? 0}</td><td>${r.free_unlocated ?? r.unlocated}</td></tr>`));
       byId('tasks-table').innerHTML = table(['Priority','Task','SKU / quantity','Source → target','Assigned to','Status','Actions'],
         tasks.map(t => {
           const active = ['queued','assigned','in_progress'].includes(t.status);
@@ -174,6 +235,8 @@
       });
       refreshTaskBinOptions();
       refreshBinCountOptions();
+      renderOutbound();
+      if (!demo) await refreshOutboundOptions();
     } catch (error) { notice(error.message, true); }
   }
   async function submit(id, path, build) {
@@ -435,6 +498,128 @@
         notice(`Task #${id} updated.`); await load();
       } catch(error) {notice(error.message,true);}
     });
+
+    if (byId('out-plan-order')) {
+      byId('out-plan-order').addEventListener('change', () => refreshOutboundLines().catch(e => notice(e.message,true)));
+      byId('out-plan-line').addEventListener('change', refreshOutboundBins);
+    }
+    let pendingPlan = null;
+    const planForm = byId('out-plan-form');
+    if (planForm) planForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const d = new FormData(planForm), orderId = Number(d.get('order_id'));
+      const body = JSON.stringify({order_line_id: Number(d.get('order_line_id')),
+        bin_id: Number(d.get('bin_id')), quantity: Number(d.get('quantity'))});
+      const serialized = `${orderId}:${body}`;
+      if (!pendingPlan || pendingPlan.serialized !== serialized)
+        pendingPlan = {serialized, key: crypto.randomUUID()};
+      const button = planForm.querySelector('button[type="submit"]'); button.disabled = true;
+      try {
+        const result = await api(`/outbound/orders/${orderId}/picks`,{method:'POST',body,
+          headers:{'Idempotency-Key':pendingPlan.key}});
+        pendingPlan = null;
+        notice(`Order-bound pick #${result.id} ${result.replayed ? 'already registered' : 'allocated from the bin'}.`);
+        await load();
+      } catch(e) {notice(e.message + ' Unchanged retries remain safe.',true);}
+      finally {button.disabled = false;}
+    });
+    const scanForm = byId('out-scan-form');
+    if (scanForm) scanForm.addEventListener('submit',async event => {
+      event.preventDefault();
+      const d=new FormData(scanForm), pickId=Number(d.get('pick_id'));
+      try {
+        const result=await api(`/outbound/picks/${pickId}/scan`,{method:'POST',
+          body:JSON.stringify({scan_sku:d.get('scan_sku'),scan_bin:d.get('scan_bin')})});
+        notice(`Pick #${result.id} ${result.replayed ? 'was already verified' : 'scanned to outbound staging'}.`);
+        scanForm.reset(); await load();
+      } catch(e) {notice(e.message,true);}
+    });
+    const picksTable=byId('out-picks-table');
+    if (picksTable) picksTable.addEventListener('click',async event => {
+      const button=event.target.closest('[data-out-action]'); if (!button) return;
+      const pickId=Number(button.dataset.outPick), action=button.dataset.outAction;
+      const pick=outboundPicks.find(p=>p.id===pickId);
+      if (!pick) return;
+      if (action==='scan') {
+        scanForm.elements.pick_id.value=pick.id;
+        scanForm.elements.scan_sku.value=''; scanForm.elements.scan_bin.value='';
+        scanForm.scrollIntoView({behavior:'smooth',block:'center'});
+        scanForm.elements.scan_sku.focus(); return;
+      }
+      if (action==='pack') {
+        const f=byId('out-pack-form'); f.elements.pick_id.value=pick.id;
+        f.elements.scan_sku.value=''; f.scrollIntoView({behavior:'smooth',block:'center'});
+        f.elements.scan_sku.focus(); return;
+      }
+      try {
+        if (action==='events') {
+          const events=await api(`/outbound/picks/${pickId}/events`);
+          window.alert(events.map(e=>`${e.created_at.slice(0,16)} · ${e.action} · worker #${e.actor_id} · ${e.detail}`).join('\n') || 'No events'); return;
+        }
+        if (action==='cancel' && !window.confirm(`Cancel pick #${pickId} and release reserved bin units?`)) return;
+        await api(`/outbound/picks/${pickId}/${action}`,{method:'POST'});
+        notice(`Outbound pick #${pickId} updated.`); await load();
+      } catch(e) { notice(e.message,true); }
+    });
+
+    const cartonForm=byId('out-carton-form');
+    if (cartonForm) cartonForm.addEventListener('submit',async event => {
+      event.preventDefault(); const d=new FormData(cartonForm);
+      try {
+        const result=await api(`/outbound/orders/${Number(d.get('order_id'))}/cartons`,
+          {method:'POST',body:JSON.stringify({code:d.get('code')})});
+        notice(`Carton ${result.code} created.`); cartonForm.reset(); await load();
+      } catch(e) {notice(e.message,true);}
+    });
+    const packForm=byId('out-pack-form');
+    if (packForm) packForm.addEventListener('submit',async event => {
+      event.preventDefault(); const d=new FormData(packForm);
+      try {
+        const result=await api(`/outbound/cartons/${Number(d.get('carton_id'))}/pack`,
+          {method:'POST',body:JSON.stringify({pick_id:Number(d.get('pick_id')),
+            scan_sku:d.get('scan_sku'),scan_carton:d.get('scan_carton')})});
+        notice(`Pick #${result.pick_id} verified in carton.`); packForm.reset(); await load();
+      } catch(e) {notice(e.message,true);}
+    });
+    const cartonTable=byId('out-cartons-table');
+    if (cartonTable) cartonTable.addEventListener('click',async event => {
+      const button=event.target.closest('[data-out-carton-action]'); if (!button) return;
+      const id=Number(button.dataset.outCarton), action=button.dataset.outCartonAction;
+      const carton=outboundCartons.find(c=>c.id===id);
+      if (!carton) return;
+      if (action==='select') {
+        packForm.elements.carton_id.value=carton.id;
+        packForm.elements.scan_carton.value='';
+        packForm.scrollIntoView({behavior:'smooth',block:'center'});
+        packForm.elements.scan_carton.focus(); return;
+      }
+      if (!window.confirm(`Seal carton ${carton.code}? Packing will be locked.`)) return;
+      try {
+        await api(`/outbound/cartons/${id}/seal`,{method:'POST'});
+        notice(`Carton ${carton.code} sealed.`); await load();
+      } catch(e) {notice(e.message,true);}
+    });
+    let pendingShipment=null;
+    const dispatchForm=byId('out-dispatch-form');
+    if (dispatchForm) dispatchForm.addEventListener('submit',async event => {
+      event.preventDefault(); const d=new FormData(dispatchForm);
+      const orderId=Number(d.get('order_id'));
+      const body=JSON.stringify({carrier:d.get('carrier'),tracking_reference:d.get('tracking_reference')});
+      const serialized=`${orderId}:${body}`;
+      if (!pendingShipment || pendingShipment.serialized!==serialized)
+        pendingShipment={serialized,key:crypto.randomUUID()};
+      if (!window.confirm(`Post final warehouse goods issue for order #${orderId}?`)) return;
+      const button=dispatchForm.querySelector('button[type="submit"]'); button.disabled=true;
+      try {
+        const result=await api(`/outbound/orders/${orderId}/dispatch`,{method:'POST',body,
+          headers:{'Idempotency-Key':pendingShipment.key}});
+        pendingShipment=null;
+        notice(`Shipment #${result.id} ${result.replayed ? 'already confirmed' : 'dispatched; stock deducted'}.`);
+        dispatchForm.reset(); await load();
+      } catch(e) {notice(e.message + ' Retry unchanged details to avoid duplicate posting.',true);}
+      finally {button.disabled=false;}
+    });
+
     byId('orders-table').addEventListener('click', async event => {
       const button = event.target.closest('[data-order]'); if (!button) return;
       if (!window.confirm(`Confirm: ${button.dataset.action} order #${button.dataset.order}?`)) return;

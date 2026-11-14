@@ -9,6 +9,7 @@
       <button class="side-link" data-section="inventory">▣ &nbsp; Inventory</button>
       <button class="side-link" data-section="locations">▤ &nbsp; Storage bins</button>
       <button class="side-link" data-section="tasks">☷ &nbsp; Warehouse tasks</button>
+      {% if not is_demo %}<button class="side-link" data-section="outbound">▤ &nbsp; Pick · Pack · Dispatch</button>{% endif %}
       <button class="side-link" data-section="orders">◷ &nbsp; Scheduled orders</button>
       <button class="side-link" data-section="purchasing">♧ &nbsp; Purchasing &amp; receiving</button>
       <button class="side-link" data-section="transfers">↔ &nbsp; Transfers</button>
@@ -108,6 +109,58 @@
         </div><button class="button" type="submit">Verify scans &amp; complete</button>
       </form>{% endif %}
     </section>
+    {% if not is_demo %}
+    <section class="section-view hidden" data-view="outbound">
+      <div class="section-title"><div><h2>Outbound fulfillment control</h2><p>Bind picks to real orders and bins, scan-verifying stock into staging before packing sealed cartons and issuing the shipment.</p></div></div>
+      <div class="stat-grid execution-stats">
+        <div class="stat-card"><span>Open pick work</span><strong id="out-stat-open">—</strong><small>Queued / claimed / in progress</small></div>
+        <div class="stat-card"><span>Staged pick units</span><strong id="out-stat-staged">—</strong><small>Already removed from storage bins</small></div>
+        <div class="stat-card"><span>Sealed cartons</span><strong id="out-stat-sealed">—</strong><small>Awaiting dispatch</small></div>
+        <div class="stat-card"><span>Shipped orders</span><strong id="out-stat-shipped">—</strong><small>Confirmed goods issues</small></div>
+      </div>
+      {% if role in ['owner','manager'] %}
+      <form id="out-plan-form" class="panel order-form"><h3>1. Allocate order-bound picks from a bin</h3>
+        <div class="execution-fields">
+          <label>Reserved order<select name="order_id" id="out-plan-order" required></select></label>
+          <label>Order line<select name="order_line_id" id="out-plan-line" required></select></label>
+          <label>Source bin<select name="bin_id" id="out-plan-bin" required></select></label>
+          <label>Units to pick<input type="number" name="quantity" min="1" max="1000000" value="1" required></label>
+        </div><button class="button" type="submit">Reserve bin stock for order</button>
+        <p class="muted small">Only managers can allocate. Reservations cannot exceed the order line or free stock at the bin. Retrying unchanged work uses the same operation key.</p>
+      </form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>2. Pick work queue</h3><span class="muted small">Scan the physical SKU and source bin</span></div><div id="out-picks-table" class="table-wrap"></div></div>
+      <form id="out-scan-form" class="panel order-form"><h3>Verify an order-bound pick</h3>
+        <div class="execution-fields">
+          <label>Pick task ID<input name="pick_id" type="number" min="1" required></label>
+          <label>Scan SKU<input name="scan_sku" maxlength="80" required autocomplete="off"></label>
+          <label>Scan source bin<input name="scan_bin" maxlength="64" required autocomplete="off"></label>
+        </div><button class="button" type="submit">Confirm pick into staging</button>
+      </form>
+      <div class="form-grid">
+        <form id="out-carton-form" class="mini-form panel"><h3>3. Create a carton</h3>
+          <label>Reserved order<select name="order_id" class="out-order-select" required></select></label>
+          <label>Unique scannable carton code<input name="code" maxlength="64" placeholder="CARTON-1001" required></label>
+          <button class="button" type="submit">Create carton</button></form>
+        <form id="out-pack-form" class="mini-form panel"><h3>Pack a verified pick</h3>
+          <label>Carton ID<input name="carton_id" type="number" min="1" required></label>
+          <label>Pick ID<input name="pick_id" type="number" min="1" required></label>
+          <label>Scan SKU<input name="scan_sku" maxlength="80" required autocomplete="off"></label>
+          <label>Scan carton code<input name="scan_carton" maxlength="64" required autocomplete="off"></label>
+          <button class="button" type="submit">Verify &amp; pack full pick</button></form>
+      </div>
+      <div class="panel"><div class="panel-title"><h3>4. Cartons and sealing</h3></div><div id="out-cartons-table" class="table-wrap"></div></div>
+      {% if role in ['owner','manager'] %}
+      <form id="out-dispatch-form" class="panel order-form"><h3>5. Goods issue &amp; outbound dispatch</h3>
+        <div class="execution-fields">
+          <label>Reserved order<select name="order_id" class="out-order-select" required></select></label>
+          <label>Carrier / handling method<input name="carrier" maxlength="80" required placeholder="Manual carrier"></label>
+          <label>Tracking / dispatch reference<input name="tracking_reference" maxlength="120" required placeholder="MANIFEST-1001"></label>
+        </div><button class="button" type="submit">Confirm goods issue</button>
+        <p class="muted small">Only fully picked orders with every carton sealed can ship. This records an internal dispatch; it does not purchase a carrier label or notify a carrier.</p>
+      </form>{% endif %}
+      <div class="panel"><div class="panel-title"><h3>Shipment history</h3></div><div id="out-shipments-table" class="table-wrap"></div></div>
+    </section>
+    {% endif %}
     <section class="section-view hidden" data-view="orders"><div class="section-title"><div><h2>Scheduled orders</h2><p>Reserve products today for future fulfillment without overselling.</p></div></div>
       {% if not is_demo %}<form class="panel order-form" id="order-form"><h3>Create a customer order</h3><div class="order-fields"><label>Customer / reference<input name="customer_name" required placeholder="Retail Customer Co."></label><label>Fulfillment date<input name="due_date" id="due-date" type="date" required></label><label>Warehouse<select name="warehouse_id" class="warehouse-select" required></select></label><label>Product<select name="sku" class="sku-select" required></select></label><label>Quantity<input name="quantity" type="number" min="1" required value="1"></label></div><p class="small muted">Start with one SKU per order. The backend already supports multiple line items.</p><button class="button" type="submit">Reserve order</button></form>{% endif %}
       <div class="panel"><div class="panel-title"><h3>Latest customer orders</h3></div><div id="orders-table" class="table-wrap"></div></div>

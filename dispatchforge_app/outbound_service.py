@@ -249,18 +249,26 @@ def _carton(session: Session, bid: int, carton_id: int):
 
 def create_carton(session: Session, bid: int, order_id: int, carton_code: str, actor_id: int):
     order = _order(session, bid, order_id)
+    # Serialize carton creation with dispatch using the same SKU lock order.
+    lines = session.scalars(select(OrderLine).where(OrderLine.business_id == bid,
+        OrderLine.order_id == order.id).order_by(OrderLine.product_id)).all()
+    for line in lines:
+        _stock_guard(session, bid, order.warehouse_id, line.product_id)
+    session.refresh(order)
     if order.status != 'reserved':
         raise DomainError("Cartons require a reserved order", 409)
     carton_code = code(carton_code)
     if session.scalar(select(OutboundCarton.id).where(
             OutboundCarton.business_id == bid, OutboundCarton.code == carton_code)):
         raise DomainError("Carton code already exists in this workspace", 409)
-    carton = OutboundCarton(business_id=bid, order_id=order.id,
-        warehouse_id=order.warehouse_id, code=carton_code,
-        status='open', created_by=actor_id)
-    session.add(carton)
-    session.flush()
-    return carton
+    inserted = session.scalar(_insert_stmt(session, OutboundCarton).values(
+        business_id=bid, order_id=order.id, warehouse_id=order.warehouse_id,
+        code=carton_code, status='open', created_by=actor_id, created_at=utcnow()
+    ).on_conflict_do_nothing(index_elements=['business_id', 'code'])
+        .returning(OutboundCarton.id))
+    if inserted is None:
+        raise DomainError("Carton code already exists in this workspace", 409)
+    return session.get(OutboundCarton, inserted)
 
 
 def pack_pick(session: Session, bid: int, carton_id: int, pick_id: int,

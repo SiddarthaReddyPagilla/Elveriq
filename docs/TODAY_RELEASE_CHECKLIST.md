@@ -61,3 +61,14 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/20261113_bin_cycle_counts.
 - **Not validated locally:** live PostgreSQL concurrency (database service unavailable here), browser automation on Mac/real scanner hardware, production configuration, backup restoration, actual GitHub push, and any vendor parity claim.
 
 The research paper and 300-feature CSV are now versioned in `docs/research/`. Always associate future engineering tickets with feature IDs from that register.
+
+
+## Phase 2 addendum — outbound picking, cartons, and goods issue (November 14, 2026)
+
+- [ ] Finish and review the 10-commit outbound batch on the existing feature branch; do not deploy while the PostgreSQL migration is missing.
+- [ ] After verifying backups, apply `migrations/20261114_outbound_execution.sql` **after** the Phase 1.1 warehouse and bin-count migrations.
+- [ ] Run full Python CI with a disposable PostgreSQL database. Pay particular attention to the new simultaneous planning and duplicate dispatch tests in `tests_web/test_outbound_postgres.py`.
+- [ ] On staging, test reserved order → bin putaway → order-bound plan → claimed scan → carton packing → carton sealing → one-time dispatch; verify warehouse on-hand and reserve balances before and after.
+- [ ] Test cross-tenant IDs, staff authorization, rejected scans, duplicate idempotency keys, double reservation and blocked legacy direct fulfillment.
+- [ ] Pilot with actual pick labels and operator devices; confirm that scanned units are physically in the intended carton before a manager confirms dispatch.
+- [ ] Block public order fulfillment until carrier, packaging, exception handling and inventory recovery gaps in `docs/OUTBOUND_EXECUTION.md` are addressed.

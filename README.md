@@ -1,4 +1,4 @@
-> **NEW: Phase 1 Warehouse Execution Development** — See [Master Build Plan](docs/ELVERIQ_MASTER_BUILD_PLAN.md), [Warehouse Execution API and limitations](docs/WAREHOUSE_EXECUTION.md), and [Safe Git/Release Guide](docs/TODAY_RELEASE_CHECKLIST.md). The full 300-feature competitor research is now versioned in [`docs/research/`](docs/research/README.md). This release adds physical warehouse bins, scan-confirmed putaway/move/unlocate tasks, a worker task center and reconciliation. Order-linked picking, carrier shipping and complete WMS parity remain future phases.
+> **NEW: Phases 1–2 warehouse execution development** — See [Master Build Plan](docs/ELVERIQ_MASTER_BUILD_PLAN.md), [Warehouse Execution API and limitations](docs/WAREHOUSE_EXECUTION.md), and [Safe Git/Release Guide](docs/TODAY_RELEASE_CHECKLIST.md). The full 300-feature competitor research is now versioned in [`docs/research/`](docs/research/README.md). This release adds physical warehouse bins, scan-confirmed putaway/move/unlocate tasks, a worker task center and reconciliation. A new testable order-bound pick → carton pack → internal dispatch workflow is documented in [Outbound Execution](docs/OUTBOUND_EXECUTION.md). Carrier integration and enterprise parity remain future phases.
 
 # Elveriq Warehouse Cloud
 
@@ -17,6 +17,7 @@ Elveriq evolved from an earlier Python inventory and warehouse-ranking prototype
 - **Warehouse locations and products:** create locations, add SKUs, and import a product catalog from CSV.
 - **Persistent stock:** receive units, inspect available vs. reserved inventory, and download a CSV report.
 - **Scheduled customer orders:** reserve products for a future date, fulfill or cancel orders, and automatically update stock.
+- **Warehouse execution:** physical bins, scan-confirmed putaway and moves, bin counts, plus order-bound scan picking, carton packing/sealing and internal dispatch records. See [outbound limitations](docs/OUTBOUND_EXECUTION.md).
 - **Stock ledger:** audit when stock enters, is reserved, ships, or is released.
 - **Supplier directory, low-stock alerts, and overview metrics.**
 - **Purchase orders and supplier receiving:** create an inbound order, record partial or complete receipts, track outstanding quantities, and preserve stock-movement history.
@@ -51,7 +52,7 @@ To try the interactive workflows: select **Create workspace**, sign up, and **co
 python -m pytest -q
 ```
 
-Expected at the time of packaging: **56 passing tests** (29 original tests, 17 warehouse-cloud tests, and 10 new purchasing tests).
+The latest local outbound batch passed **134 tests**, with **10 PostgreSQL-only tests skipped** without a database. CI supplies PostgreSQL to run concurrency tests; do not treat local SQLite-only results as production acceptance.
 
 ### CSV product import
 
@@ -64,6 +65,10 @@ SKU-101,Packaging Tape,499,10,roll
 ```
 
 Existing SKU rows are skipped. Import creates catalog records, **not stock on hand**. Use **Receive stock** to record the physical goods. The import is limited to 1 MB / 1,000 rows.
+
+## Outbound picking, packing and dispatch
+
+Create a private workspace, add and receive a SKU, put it away into a physical bin, and reserve a customer order. In **Pick · Pack · Dispatch**, allocate a bin pick against an order line, claim/start/scan it, pack it into a carton, seal the carton and confirm internal goods issue. Carrier and tracking strings are **manually supplied**; this is not a carrier-label or shipping-integration feature. Read [docs/OUTBOUND_EXECUTION.md](docs/OUTBOUND_EXECUTION.md) before using it, and follow the additive PostgreSQL migration order.
 
 ## Purchasing workflow
 

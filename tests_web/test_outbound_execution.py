@@ -184,3 +184,56 @@ def test_missing_auth_csrf_and_cross_tenant_ids(client):
     assert client.post(f'/api/outbound/cartons/{c}/seal',headers=h2).status_code==404
     assert dispatch(client,h2,order_id).status_code==404
     assert client.get('/api/outbound/picks').json()==[]
+
+
+def test_split_order_line_can_pick_and_pack_from_multiple_work_items(client):
+    h,wid,bin_id,order_id,line_id=ready(client)
+    p1=plan(client,h,order_id,line_id,bin_id,5,key='split-pick-key-1').json()['id']
+    p2=plan(client,h,order_id,line_id,bin_id,3,key='split-pick-key-2').json()['id']
+    assert picked(client,h,p1).status_code==200
+    assert picked(client,h,p2).status_code==200
+    carton_id=carton(client,h,order_id)
+    assert pack(client,h,carton_id,p1).status_code==200
+    assert pack(client,h,carton_id,p2).status_code==200
+    assert len(client.get('/api/outbound/cartons').json()[0]['items'])==2
+    assert client.post(f'/api/outbound/cartons/{carton_id}/seal',headers=h).status_code==200
+    assert dispatch(client,h,order_id).status_code==200
+    assert client.get('/api/inventory').json()[0]['on_hand']==12
+
+
+def test_packing_bad_scan_is_audited_and_cross_order_mix_blocked(client):
+    h,wid,bin_id,order_id,line_id=ready(client)
+    p=plan(client,h,order_id,line_id,bin_id).json()['id']
+    picked(client,h,p)
+    c=carton(client,h,order_id)
+    bad=client.post(f'/api/outbound/cartons/{c}/pack',headers=h,
+        json={'pick_id':p,'scan_sku':'WRONG','scan_carton':'PACK-001'})
+    assert bad.status_code==409
+    assert client.get(f'/api/outbound/picks/{p}/events').json()[-1]['action']=='pack_scan_rejected'
+    assert client.get('/api/outbound/picks').json()[0]['status']=='picked'
+    second=client.post('/api/orders',headers=h,json=order_request(wid,
+        [{'sku':'PRODUCT-1','quantity':1}]))
+    assert second.status_code==201
+    second_carton=carton(client,h,second.json()['id'],'PACK-OTHER')
+    mismatch=pack(client,h,second_carton,p,code='PACK-OTHER')
+    assert mismatch.status_code==409
+    assert pack(client,h,c,p).status_code==200
+
+
+def test_outbound_workspace_visibility_by_role(client):
+    h=register(client)
+    owner=client.get('/app').text
+    assert 'data-section="outbound"' in owner
+    assert 'id="out-plan-form"' in owner
+    assert 'id="out-pack-form"' in owner
+    with client.test_db.SessionLocal() as s:
+        from dispatchforge_app.models import User
+        actor=s.scalar(select(User).where(User.email=='owner@example.com'))
+        actor.role='staff'
+        s.commit()
+    staff=client.get('/app').text
+    assert 'data-section="outbound"' in staff
+    assert 'id="out-plan-form"' not in staff
+    assert 'id="out-pack-form"' in staff
+    assert 'id="out-dispatch-form"' not in staff
+    assert 'data-section="outbound"' not in client.get('/demo').text

@@ -2,15 +2,15 @@
 
 ## Scope
 
-This release adds a physical location registry, bin-placement balances, work task states, scanner-confirmed location changes and audit events. These are incremental features on the original warehouse-level accounting engine. **It is not yet** a directed order-pick, lot/serial, handling-unit, quality-hold, automated shipping or advanced labor-management product.
+This release adds a physical location registry, bin-placement balances, work task states, scanner-confirmed location changes and audit events. These are incremental features on the original warehouse-level accounting engine. **This document describes the original Phase 1 foundation.** The newer, separately-scoped order-bound outbound flow is documented in `docs/OUTBOUND_EXECUTION.md`; lot/serial, quality holds, carrier shipping and advanced labor management remain unimplemented.
 
 ## Data semantics
 
-`stock_levels.on_hand` and `.reserved` remain authoritative. `bin_stocks.on_hand` is the subset of that stock physically placed into named bins. `unlocated = warehouse on_hand - Σ placed` is the received/staged/not-yet-placed pool. Pending putaway reserves unlocated units **without** adjusting warehouse on-hand. A `move` reserves source-bin units and, after correct scanning, changes only the source and destination bin quantities. An `unlocate` reserves and then removes units from a bin back into the unlocated staging pool; it does not fulfill an order. The old `/orders/{id}/fulfill` endpoint may debit stock only after enough stock has been moved to unlocated, while respecting order reservations.
+`stock_levels.on_hand` and `.reserved` remain authoritative. `bin_stocks.on_hand` is the subset of that stock physically placed into named bins. `unlocated = warehouse on_hand - Σ placed` is the received/staged/not-yet-placed pool. Pending putaway reserves unlocated units **without** adjusting warehouse on-hand. A `move` reserves source-bin units and, after correct scanning, changes only the source and destination bin quantities. An `unlocate` reserves and then removes units from a bin back into the unlocated staging pool; it does not fulfill an order. The old `/orders/{id}/fulfill` endpoint may debit *free* unlocated stock only, respecting reservations and excluding any staged outbound units. It refuses orders with active outbound picks. See `docs/OUTBOUND_EXECUTION.md`.
 
 An `unlocate` task has `to_bin_id = null`, uses destination scan literal `UNLOCATED`, and requires a source bin scan. It is currently a staging bridge, not an order-linked pick task. Managers must not consider it proof that an order was picked correctly. The final ledger redesign must move from these transitional semantics to atomic physical state posting and order-specific allocation.
 
-Stock reductions from direct adjustments, warehouse transfers, order fulfillment and cycle count posting are guarded by the correlated `protected_units_expr()` so they cannot consume placed stock or open putaway reservations. Existing receipts and return receipts remain additive and continue to add unlocated units. The safeguards are implemented only through the application's known inventory APIs; unauthorized external SQL that writes the stock tables bypasses them and is unsupported.
+Stock reductions from direct adjustments, warehouse transfers, order fulfillment and cycle count posting are guarded by the correlated `protected_units_expr()` so they cannot consume placed stock, open putaway reservations, or scanned outbound units staged for a specific customer order. Existing receipts and return receipts remain additive and continue to add unlocated units. The safeguards are implemented only through the application's known inventory APIs; unauthorized external SQL that writes the stock tables bypasses them and is unsupported.
 
 ## Roles
 
@@ -64,7 +64,7 @@ POST requests require the existing `X-CSRF-Token` session token. Task creation a
 
 ## Critical limitations and follow-up work
 
-- No order-specific bin reservations; explicit `unlocate` is not linked to a specific customer order.
+- Order-specific bin reservations are now offered through the separate `/api/outbound` flow; this legacy `unlocate` task is **still not linked to an order** and cannot substitute for a verified pick. Short picks and outbound returns are not supported yet.
 - No lot, serial, expiry, ownership, hold, or handling-unit dimension in `BinStock` yet.
 - No physical device SDK, offline transaction queue, optimized routing, bulk wave release, configurable exception codes or barcode label printer.
 - Capacities are coarse *unit-count* limits across products, not volume/weight or slotting constraints. No UI to edit/deactivate bins yet.
