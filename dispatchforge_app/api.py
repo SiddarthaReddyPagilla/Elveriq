@@ -34,6 +34,9 @@ from .warehouse_execution import (create_bin, list_bins, list_bin_stock, locatio
     create_task, list_tasks, task_events, assign_task, claim_task, start_task,
     cancel_task, complete_task)
 
+from .inbound_service import (create_notice, arrive_notice, scan_receipt, close_notice,
+    cancel_notice, list_notices, receipt_history, notice_events)
+
 router = APIRouter(prefix="/api")
 
 
@@ -932,3 +935,27 @@ def export_inventory(request: Request, demo: bool = False, session: Session = De
         writer.writerow([csv_cell(row[field]) for field in fields])
     return Response(stream.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="elveriq-inventory.csv"'})
+
+class InboundNoticeItemIn(BaseModel):
+    purchase_line_id: int = Field(gt=0)
+    expected: int = Field(ge=1, le=1_000_000)
+
+
+class InboundNoticeCreateIn(BaseModel):
+    purchase_order_id: int = Field(gt=0)
+    reference: str = Field(min_length=1, max_length=100)
+    supplier_reference: str = Field(default="", max_length=120)
+    dock: str = Field(default="", max_length=64)
+    items: list[InboundNoticeItemIn] = Field(min_length=1, max_length=100)
+
+
+class InboundReceiptScanIn(BaseModel):
+    line_id: int = Field(gt=0)
+    scan_sku: str = Field(min_length=1, max_length=80)
+    accepted: int = Field(default=0, ge=0, le=1_000_000)
+    damaged: int = Field(default=0, ge=0, le=1_000_000)
+    damage_note: str = Field(default="", max_length=250)
+
+
+class InboundNoteIn(BaseModel):
+    note: str = Field(default="", max_length=250)
