@@ -985,3 +985,35 @@ def inbound_arrive(notice_id: int, request: Request,
     notice, replayed = arrive_notice(session, actor.business_id, notice_id, actor.id)
     session.commit()
     return {'id': notice.id, 'status': notice.status, 'replayed': replayed}
+
+@router.post('/inbound/notices/{notice_id}/scan')
+def inbound_scan(notice_id: int, payload: InboundReceiptScanIn, request: Request,
+                 idempotency_key: str = Header(default=''),
+                 x_csrf_token: str = Header(default=''), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    receipt, replayed = scan_receipt(session, actor.business_id, notice_id,
+        payload.line_id, payload.scan_sku, payload.accepted, payload.damaged,
+        payload.damage_note, actor.id, idempotency_key)
+    session.commit()
+    return {'id': receipt.id, 'accepted': receipt.accepted,
+            'damaged': receipt.damaged, 'replayed': replayed}
+
+
+@router.post('/inbound/notices/{notice_id}/close')
+def inbound_close(notice_id: int, payload: InboundNoteIn, request: Request,
+                  x_csrf_token: str = Header(default=''), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {'owner','manager'})
+    notice, short = close_notice(session, actor.business_id, notice_id, actor.id, payload.note)
+    session.commit()
+    return {'id': notice.id, 'status': notice.status, 'short': short}
+
+
+@router.post('/inbound/notices/{notice_id}/cancel')
+def inbound_cancel(notice_id: int, payload: InboundNoteIn, request: Request,
+                   x_csrf_token: str = Header(default=''), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {'owner','manager'})
+    notice = cancel_notice(session, actor.business_id, notice_id, actor.id, payload.note)
+    session.commit()
+    return {'id': notice.id, 'status': notice.status}
