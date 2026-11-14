@@ -12,7 +12,7 @@ from .demo import DEMO_SLUG
 from .errors import DomainError
 from .inventory_service import (apply_stock_delta, create_product, create_supplier,
                                 create_warehouse, list_inventory, list_movements)
-from .models import Business, CustomerOrder, Product, Supplier, Warehouse
+from .models import Business, CustomerOrder, OrderLine, OutboundPick, Product, Supplier, Warehouse
 from .order_service import create_order, change_order_status, list_orders
 from .purchasing_service import (create_purchase_order, receive_purchase_line,
     cancel_purchase_order, list_purchase_orders)
@@ -27,6 +27,9 @@ from .audit_service import audit_stock
 from .operations_service import operations_queue
 from .bin_cycle_count_service import (start_bin_count, post_bin_count,
     cancel_bin_count, list_bin_counts)
+from .outbound_service import (plan_pick, list_picks, pick_events, claim_pick, start_pick,
+    scan_pick, cancel_pick, create_carton, pack_pick, seal_carton, list_cartons,
+    dispatch_order, list_shipments, _order)
 from .warehouse_execution import (create_bin, list_bins, list_bin_stock, location_summary,
     create_task, list_tasks, task_events, assign_task, claim_task, start_task,
     cancel_task, complete_task)
@@ -167,6 +170,34 @@ class TaskScanIn(BaseModel):
     scan_sku: str = Field(min_length=1, max_length=80)
     scan_to_bin: str = Field(min_length=1, max_length=64)
     scan_from_bin: str | None = Field(default=None, max_length=64)
+
+
+
+
+class OutboundPickIn(BaseModel):
+    order_line_id: int = Field(gt=0)
+    bin_id: int = Field(gt=0)
+    quantity: int = Field(ge=1, le=1_000_000)
+
+
+class OutboundScanIn(BaseModel):
+    scan_sku: str = Field(min_length=1, max_length=80)
+    scan_bin: str = Field(min_length=1, max_length=64)
+
+
+class CartonCreateIn(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
+class CartonPackIn(BaseModel):
+    pick_id: int = Field(gt=0)
+    scan_sku: str = Field(min_length=1, max_length=80)
+    scan_carton: str = Field(min_length=1, max_length=64)
+
+
+class DispatchIn(BaseModel):
+    carrier: str = Field(min_length=1, max_length=80)
+    tracking_reference: str = Field(min_length=1, max_length=120)
 
 
 class OrderItemIn(BaseModel):
@@ -696,6 +727,147 @@ def cancel_work(task_id: int, request: Request, x_csrf_token: str = Header(defau
     task = cancel_task(session, actor.business_id, task_id, actor.id)
     session.commit()
     return {"id": task.id, "status": task.status}
+
+
+
+
+@router.get("/outbound/orders/{order_id}/lines")
+def outbound_order_lines(order_id: int, request: Request, session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    order = _order(session, bid, order_id)
+    rows = session.execute(select(OrderLine, Product.sku).join(Product, Product.id == OrderLine.product_id)
+        .where(OrderLine.business_id == bid, OrderLine.order_id == order.id,
+               Product.business_id == bid).order_by(OrderLine.id)).all()
+    picks = list_picks(session, bid, order.id)
+    return [{"order_line_id": line.id, "sku": sku, "quantity": line.quantity,
+             "planned": sum(p["quantity"] for p in picks if p["order_line_id"] == line.id
+                            and p["status"] != "canceled"),
+             "packed": sum(p["quantity"] for p in picks if p["order_line_id"] == line.id
+                           and p["status"] in ("packed", "shipped"))}
+            for line, sku in rows]
+
+
+@router.get("/outbound/picks")
+def outbound_picks(request: Request, order_id: int | None = Query(default=None, gt=0),
+                   session: Session = Depends(get_db)):
+    return list_picks(session, read_access(request, session, False), order_id)
+
+
+@router.get("/outbound/picks/{pick_id}/events")
+def outbound_events(pick_id: int, request: Request, session: Session = Depends(get_db)):
+    return pick_events(session, read_access(request, session, False), pick_id)
+
+
+@router.post("/outbound/orders/{order_id}/picks", status_code=201)
+def outbound_plan(order_id: int, payload: OutboundPickIn, request: Request,
+                  idempotency_key: str = Header(default=""),
+                  x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {"owner", "manager"})
+    pick, replayed = plan_pick(session, actor.business_id, order_id,
+        payload.order_line_id, payload.bin_id, payload.quantity, actor.id, idempotency_key)
+    session.commit()
+    return {"id": pick.id, "status": pick.status, "replayed": replayed}
+
+
+@router.post("/outbound/picks/{pick_id}/claim")
+def outbound_claim(pick_id: int, request: Request, x_csrf_token: str = Header(default=""),
+                   session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    pick = claim_pick(session, actor.business_id, pick_id, actor.id)
+    session.commit()
+    return {"id": pick.id, "status": pick.status}
+
+
+@router.post("/outbound/picks/{pick_id}/start")
+def outbound_start(pick_id: int, request: Request, x_csrf_token: str = Header(default=""),
+                   session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    pick = start_pick(session, actor.business_id, pick_id, actor.id)
+    session.commit()
+    return {"id": pick.id, "status": pick.status}
+
+
+@router.post("/outbound/picks/{pick_id}/scan")
+def outbound_scan(pick_id: int, payload: OutboundScanIn, request: Request,
+                  x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    try:
+        pick, replayed = scan_pick(session, actor.business_id, pick_id,
+            actor.id, payload.scan_sku, payload.scan_bin)
+    except DomainError as error:
+        if error.message.startswith("Outbound scan verification failed"):
+            session.commit()  # Failed scan audit, never a stock movement.
+        raise
+    session.commit()
+    return {"id": pick.id, "status": pick.status, "replayed": replayed}
+
+
+@router.post("/outbound/picks/{pick_id}/cancel")
+def outbound_cancel(pick_id: int, request: Request,
+                    x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {"owner", "manager"})
+    pick = cancel_pick(session, actor.business_id, pick_id, actor.id)
+    session.commit()
+    return {"id": pick.id, "status": pick.status}
+
+
+@router.get("/outbound/cartons")
+def outbound_cartons(request: Request, order_id: int | None = Query(default=None, gt=0),
+                     session: Session = Depends(get_db)):
+    return list_cartons(session, read_access(request, session, False), order_id)
+
+
+@router.post("/outbound/orders/{order_id}/cartons", status_code=201)
+def outbound_create_carton(order_id: int, payload: CartonCreateIn, request: Request,
+                           x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    carton = create_carton(session, actor.business_id, order_id, payload.code, actor.id)
+    session.commit()
+    return {"id": carton.id, "code": carton.code, "status": carton.status}
+
+
+@router.post("/outbound/cartons/{carton_id}/pack")
+def outbound_pack(carton_id: int, payload: CartonPackIn, request: Request,
+                  x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    try:
+        pick, replayed = pack_pick(session, actor.business_id, carton_id, payload.pick_id,
+            actor.id, payload.scan_sku, payload.scan_carton)
+    except DomainError as error:
+        if error.message.startswith("Packing scan verification failed"):
+            session.commit()
+        raise
+    session.commit()
+    return {"pick_id": pick.id, "status": pick.status, "replayed": replayed}
+
+
+@router.post("/outbound/cartons/{carton_id}/seal")
+def outbound_seal(carton_id: int, request: Request,
+                  x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    carton = seal_carton(session, actor.business_id, carton_id, actor.id)
+    session.commit()
+    return {"id": carton.id, "status": carton.status}
+
+
+@router.get("/outbound/shipments")
+def outbound_shipments(request: Request, session: Session = Depends(get_db)):
+    return list_shipments(session, read_access(request, session, False))
+
+
+@router.post("/outbound/orders/{order_id}/dispatch")
+def outbound_dispatch(order_id: int, payload: DispatchIn, request: Request,
+                      idempotency_key: str = Header(default=""),
+                      x_csrf_token: str = Header(default=""), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {"owner", "manager"})
+    shipment, replayed = dispatch_order(session, actor.business_id, order_id,
+        actor.id, payload.carrier, payload.tracking_reference, idempotency_key)
+    session.commit()
+    return {"id": shipment.id, "order_id": shipment.order_id,
+            "tracking_reference": shipment.tracking_reference, "replayed": replayed}
 
 
 @router.get("/health")
