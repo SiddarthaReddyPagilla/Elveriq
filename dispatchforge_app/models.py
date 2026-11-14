@@ -474,3 +474,14 @@ class InboundReceipt(Base):
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class InboundNoticeEvent(Base):
+    """Immutable inbound arrival/closure operations trail."""
+    __tablename__ = "inbound_notice_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    notice_id: Mapped[int] = mapped_column(ForeignKey("inbound_notices.id"), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
