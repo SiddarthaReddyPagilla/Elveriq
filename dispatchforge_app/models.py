@@ -421,3 +421,23 @@ class OutboundShipment(Base):
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     shipped_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     shipped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class InboundNotice(Base):
+    """Supplier advance shipment notice bound to an existing purchase order."""
+    __tablename__ = "inbound_notices"
+    __table_args__ = (UniqueConstraint("business_id", "reference", name="uq_inbound_reference"),
+        CheckConstraint("status IN ('planned', 'arrived', 'closed', 'canceled')", name="inbound_notice_status_valid"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    purchase_order_id: Mapped[int] = mapped_column(ForeignKey("purchase_orders.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    reference: Mapped[str] = mapped_column(String(100), nullable=False)
+    supplier_reference: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    dock: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="planned", nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    arrived_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    closed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
