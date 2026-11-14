@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 
 from .errors import DomainError
 from .models import (BinStock, CustomerOrder, OrderLine, OutboundPick, OutboundPickEvent,
-                     Product, StockLevel, WarehouseBin, utcnow)
-from .warehouse_execution import KEY, _stock_guard
+                     Product, StockLevel, WarehouseBin, OutboundCarton, OutboundCartonItem, utcnow)
+from .warehouse_execution import KEY, _stock_guard, code
 
 ACTIVE_PICK = ("queued", "assigned", "in_progress")
 STAGED_PICK = ("picked", "packed")
@@ -237,3 +237,102 @@ def scan_pick(session: Session, bid: int, pick_id: int, actor_id: int,
     _event(session, pick, actor_id, 'picked', f'Scanned {product.sku} at {bin_row.code}')
     session.flush()
     return pick, False
+
+
+def _carton(session: Session, bid: int, carton_id: int):
+    carton = session.scalar(select(OutboundCarton).where(
+        OutboundCarton.business_id == bid, OutboundCarton.id == carton_id))
+    if carton is None:
+        raise DomainError("Carton not found", 404)
+    return carton
+
+
+def create_carton(session: Session, bid: int, order_id: int, carton_code: str, actor_id: int):
+    order = _order(session, bid, order_id)
+    if order.status != 'reserved':
+        raise DomainError("Cartons require a reserved order", 409)
+    carton_code = code(carton_code)
+    if session.scalar(select(OutboundCarton.id).where(
+            OutboundCarton.business_id == bid, OutboundCarton.code == carton_code)):
+        raise DomainError("Carton code already exists in this workspace", 409)
+    carton = OutboundCarton(business_id=bid, order_id=order.id,
+        warehouse_id=order.warehouse_id, code=carton_code,
+        status='open', created_by=actor_id)
+    session.add(carton)
+    session.flush()
+    return carton
+
+
+def pack_pick(session: Session, bid: int, carton_id: int, pick_id: int,
+              actor_id: int, scan_sku: str, scan_carton: str):
+    pick = _pick(session, bid, pick_id)
+    _stock_guard(session, bid, pick.warehouse_id, pick.product_id)
+    session.refresh(pick)
+    carton = _carton(session, bid, carton_id)
+    session.refresh(carton)
+    product = session.scalar(select(Product).where(Product.id == pick.product_id,
+        Product.business_id == bid))
+    if (scan_sku or '').strip().upper() != product.sku or \
+            (scan_carton or '').strip().upper() != carton.code:
+        _event(session, pick, actor_id, 'pack_scan_rejected', 'SKU/carton verification mismatch')
+        session.flush()
+        raise DomainError("Packing scan verification failed: check SKU and carton", 409)
+    if pick.order_id != carton.order_id or pick.warehouse_id != carton.warehouse_id:
+        raise DomainError("Pick and carton belong to different orders or warehouses", 409)
+    if pick.status == 'packed':
+        item = session.scalar(select(OutboundCartonItem).where(
+            OutboundCartonItem.business_id == bid, OutboundCartonItem.pick_id == pick.id,
+            OutboundCartonItem.carton_id == carton.id))
+        if item:
+            return pick, True
+        raise DomainError("Pick already packed into another carton", 409)
+    if carton.status != 'open':
+        raise DomainError("Carton already sealed or dispatched", 409)
+    result = session.execute(update(OutboundPick).where(OutboundPick.business_id == bid,
+        OutboundPick.id == pick.id, OutboundPick.status == 'picked'
+    ).values(status='packed'))
+    if result.rowcount != 1:
+        raise DomainError("Only a verified, unpacked pick can be packed", 409)
+    session.add(OutboundCartonItem(business_id=bid, carton_id=carton.id,
+        pick_id=pick.id, quantity=pick.quantity, packed_by=actor_id))
+    _event(session, pick, actor_id, 'packed', f'Carton {carton.code}')
+    session.flush()
+    session.refresh(pick)
+    return pick, False
+
+
+def seal_carton(session: Session, bid: int, carton_id: int, actor_id: int):
+    carton = _carton(session, bid, carton_id)
+    # Conditional status transition serializes sealing with other packers.
+    count = session.scalar(select(func.count(OutboundCartonItem.id)).where(
+        OutboundCartonItem.business_id == bid, OutboundCartonItem.carton_id == carton.id))
+    if not count:
+        raise DomainError("Cannot seal an empty carton", 409)
+    result = session.execute(update(OutboundCarton).where(
+        OutboundCarton.id == carton.id, OutboundCarton.business_id == bid,
+        OutboundCarton.status == 'open').values(
+            status='sealed', sealed_by=actor_id, sealed_at=utcnow()))
+    if result.rowcount != 1:
+        raise DomainError("Carton is already sealed or shipped", 409)
+    session.refresh(carton)
+    return carton
+
+
+def list_cartons(session: Session, bid: int, order_id: int | None = None):
+    q = select(OutboundCarton).where(OutboundCarton.business_id == bid)
+    if order_id is not None:
+        _order(session, bid, order_id)
+        q = q.where(OutboundCarton.order_id == order_id)
+    cartons = session.scalars(q.order_by(OutboundCarton.id.desc()).limit(200)).all()
+    result = []
+    for carton in cartons:
+        items = session.execute(select(OutboundCartonItem, OutboundPick, Product.sku)
+            .join(OutboundPick, OutboundPick.id == OutboundCartonItem.pick_id)
+            .join(Product, Product.id == OutboundPick.product_id)
+            .where(OutboundCartonItem.business_id == bid,
+                   OutboundCartonItem.carton_id == carton.id)).all()
+        result.append({'id': carton.id, 'order_id': carton.order_id,
+            'code': carton.code, 'status': carton.status,
+            'items': [{'pick_id': p.id, 'sku': sku, 'quantity': item.quantity}
+                      for item,p,sku in items]})
+    return result
