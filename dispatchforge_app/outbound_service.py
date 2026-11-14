@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from .errors import DomainError
 from .models import (BinStock, CustomerOrder, OrderLine, OutboundPick, OutboundPickEvent,
-                     Product, StockLevel, WarehouseBin, OutboundCarton, OutboundCartonItem, utcnow)
+                     Product, StockLevel, StockMovement, OutboundShipment, WarehouseBin, OutboundCarton, OutboundCartonItem, utcnow)
 from .warehouse_execution import KEY, _stock_guard, code
 
 ACTIVE_PICK = ("queued", "assigned", "in_progress")
@@ -241,7 +241,7 @@ def scan_pick(session: Session, bid: int, pick_id: int, actor_id: int,
 
 def _carton(session: Session, bid: int, carton_id: int):
     carton = session.scalar(select(OutboundCarton).where(
-        OutboundCarton.business_id == bid, OutboundCarton.id == carton_id))
+        OutboundCarton.business_id == bid, OutboundCarton.id == carton_id).with_for_update())
     if carton is None:
         raise DomainError("Carton not found", 404)
     return carton
@@ -336,3 +336,99 @@ def list_cartons(session: Session, bid: int, order_id: int | None = None):
             'items': [{'pick_id': p.id, 'sku': sku, 'quantity': item.quantity}
                       for item,p,sku in items]})
     return result
+
+
+def dispatch_order(session: Session, bid: int, order_id: int, actor_id: int,
+                   carrier: str, tracking_reference: str, key: str):
+    """Goods issue: atomic once-only warehouse debit + release of reserved order units."""
+    from .warehouse_execution import protected_units_expr
+    _valid_key(key)
+    carrier = (carrier or '').strip()
+    tracking_reference = (tracking_reference or '').strip()
+    if not 1 <= len(carrier) <= 80 or not 1 <= len(tracking_reference) <= 120:
+        raise DomainError("Carrier and tracking/reference must be provided")
+    fingerprint = _fingerprint({'order_id': order_id, 'carrier': carrier,
+                                'tracking_reference': tracking_reference})
+    previous = session.scalar(select(OutboundShipment).where(
+        OutboundShipment.business_id == bid, OutboundShipment.idempotency_key == key))
+    if previous:
+        if previous.request_fingerprint != fingerprint:
+            raise DomainError("Idempotency key reused with different shipment details", 409)
+        return previous, True
+    order = _order(session, bid, order_id)
+    lines = session.scalars(select(OrderLine).where(OrderLine.business_id == bid,
+        OrderLine.order_id == order.id).order_by(OrderLine.product_id)).all()
+    if not lines:
+        raise DomainError("Order has no items", 409)
+    # Match the exact lock order used by order cancellation and pick planning.
+    for line in lines:
+        _stock_guard(session, bid, order.warehouse_id, line.product_id)
+    session.refresh(order)
+    previous = session.scalar(select(OutboundShipment).where(
+        OutboundShipment.business_id == bid, OutboundShipment.idempotency_key == key))
+    if previous:
+        if previous.request_fingerprint != fingerprint:
+            raise DomainError("Idempotency key reused with different shipment details", 409)
+        return previous, True
+    if order.status != 'reserved':
+        raise DomainError("Order already fulfilled or canceled", 409)
+    if session.scalar(select(OutboundShipment.id).where(
+            OutboundShipment.business_id == bid, OutboundShipment.order_id == order.id)):
+        raise DomainError("Order has already been dispatched", 409)
+    cartons = session.scalars(select(OutboundCarton).where(
+        OutboundCarton.business_id == bid, OutboundCarton.order_id == order.id)).all()
+    if not cartons or any(c.status != 'sealed' for c in cartons):
+        raise DomainError("All outbound cartons must be sealed before dispatch", 409)
+    picks = session.scalars(select(OutboundPick).where(OutboundPick.business_id == bid,
+        OutboundPick.order_id == order.id, OutboundPick.status != 'canceled')).all()
+    if not picks or any(p.status != 'packed' for p in picks):
+        raise DomainError("Every planned pick must be verified and packed", 409)
+    for line in lines:
+        if sum(p.quantity for p in picks if p.order_line_id == line.id) != line.quantity:
+            raise DomainError("Packed quantities do not match the reserved order", 409)
+    packed_count = session.scalar(select(func.count(OutboundCartonItem.id))
+        .join(OutboundPick, OutboundPick.id == OutboundCartonItem.pick_id)
+        .where(OutboundCartonItem.business_id == bid, OutboundPick.order_id == order.id))
+    if packed_count != len(picks):
+        raise DomainError("A verified pick is missing from cartons", 409)
+    # Move staged rows to shipped in this transaction so protected_units_expr
+    # excludes THIS shipment while preserving every other order's staged stock.
+    session.execute(update(OutboundPick).where(OutboundPick.business_id == bid,
+        OutboundPick.order_id == order.id, OutboundPick.status == 'packed')
+        .values(status='shipped'))
+    session.flush()
+    for line in lines:
+        outcome = session.execute(update(StockLevel).where(
+            StockLevel.business_id == bid, StockLevel.warehouse_id == order.warehouse_id,
+            StockLevel.product_id == line.product_id,
+            StockLevel.reserved >= line.quantity,
+            StockLevel.on_hand - line.quantity >= protected_units_expr()
+        ).values(on_hand=StockLevel.on_hand - line.quantity,
+                 reserved=StockLevel.reserved - line.quantity))
+        if outcome.rowcount != 1:
+            raise DomainError("Dispatch cannot debit stock protected by other warehouse work", 409)
+        session.add(StockMovement(business_id=bid, warehouse_id=order.warehouse_id,
+            product_id=line.product_id, user_id=actor_id, kind='ship',
+            on_hand_delta=-line.quantity, reserved_delta=-line.quantity,
+            note=f'Order #{order.id} verified outbound dispatch'))
+    for carton in cartons:
+        carton.status = 'shipped'
+    order.status = 'fulfilled'
+    shipment = OutboundShipment(business_id=bid, order_id=order.id,
+        warehouse_id=order.warehouse_id, carrier=carrier,
+        tracking_reference=tracking_reference, idempotency_key=key,
+        request_fingerprint=fingerprint, shipped_by=actor_id)
+    session.add(shipment)
+    session.flush()
+    for pick in picks:
+        _event(session, pick, actor_id, 'shipped', f'Shipment #{shipment.id}')
+    session.flush()
+    return shipment, False
+
+
+def list_shipments(session: Session, bid: int):
+    records = session.scalars(select(OutboundShipment).where(
+        OutboundShipment.business_id == bid).order_by(OutboundShipment.id.desc()).limit(200))
+    return [{'id': r.id, 'order_id': r.order_id, 'warehouse_id': r.warehouse_id,
+             'carrier': r.carrier, 'tracking_reference': r.tracking_reference,
+             'shipped_by': r.shipped_by, 'shipped_at': r.shipped_at.isoformat()} for r in records]
