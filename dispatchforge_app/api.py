@@ -1017,3 +1017,12 @@ def inbound_cancel(notice_id: int, payload: InboundNoteIn, request: Request,
     notice = cancel_notice(session, actor.business_id, notice_id, actor.id, payload.note)
     session.commit()
     return {'id': notice.id, 'status': notice.status}
+
+@router.get('/inbound/notices/{notice_id}/receipts')
+def inbound_receipts(notice_id: int, request: Request, session: Session = Depends(get_db)):
+    return receipt_history(session, read_access(request, session, False), notice_id)
+
+
+@router.get('/inbound/notices/{notice_id}/events')
+def inbound_events(notice_id: int, request: Request, session: Session = Depends(get_db)):
+    return notice_events(session, read_access(request, session, False), notice_id)
