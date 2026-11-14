@@ -171,3 +171,23 @@ def scan_receipt(session: Session, bid: int, notice_id: int, notice_line_id: int
         f'{sku}: +{accepted} accepted, {damaged} damaged; receipt #{receipt_id}')
     session.flush()
     return session.get(InboundReceipt, receipt_id), False
+
+def close_notice(session: Session, bid: int, notice_id: int, actor_id: int, note: str = ''):
+    notice = _notice(session, bid, notice_id, lock=True)
+    if notice.status != 'arrived':
+        raise DomainError('Only arrived ASNs may be closed', 409)
+    note = (note or '').strip()
+    if len(note) > 250:
+        raise DomainError('Closure note too long')
+    lines = session.scalars(select(InboundNoticeLine).where(
+        InboundNoticeLine.business_id == bid, InboundNoticeLine.notice_id == notice.id)).all()
+    short = sum(line.expected-line.accepted-line.damaged for line in lines)
+    if short and len(note) < 3:
+        raise DomainError('A short shipment requires a closure reason', 409)
+    if session.execute(update(InboundNotice).where(InboundNotice.id == notice.id,
+        InboundNotice.business_id == bid, InboundNotice.status == 'arrived')
+        .values(status='closed', closed_by=actor_id, closed_at=utcnow())).rowcount != 1:
+        raise DomainError('Inbound notice closure state changed', 409)
+    _event(session, notice, actor_id, 'closed', f'{short} units short; {note}'[:250])
+    session.refresh(notice)
+    return notice, short
