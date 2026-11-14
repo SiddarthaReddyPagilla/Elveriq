@@ -959,3 +959,29 @@ class InboundReceiptScanIn(BaseModel):
 
 class InboundNoteIn(BaseModel):
     note: str = Field(default="", max_length=250)
+
+@router.get('/inbound/notices')
+def inbound_notices(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+                    session: Session = Depends(get_db)):
+    return list_notices(session, read_access(request, session, False), warehouse_id)
+
+
+@router.post('/inbound/notices', status_code=201)
+def inbound_create(payload: InboundNoticeCreateIn, request: Request,
+                   x_csrf_token: str = Header(default=''), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    require_role(actor, {'owner','manager'})
+    notice = create_notice(session, actor.business_id, payload.purchase_order_id,
+        payload.reference, payload.supplier_reference, payload.dock,
+        [item.model_dump() for item in payload.items], actor.id)
+    session.commit()
+    return {'id': notice.id, 'status': notice.status, 'reference': notice.reference}
+
+
+@router.post('/inbound/notices/{notice_id}/arrive')
+def inbound_arrive(notice_id: int, request: Request,
+                   x_csrf_token: str = Header(default=''), session: Session = Depends(get_db)):
+    actor = write_access(request, session, x_csrf_token)
+    notice, replayed = arrive_notice(session, actor.business_id, notice_id, actor.id)
+    session.commit()
+    return {'id': notice.id, 'status': notice.status, 'replayed': replayed}
