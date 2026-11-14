@@ -146,3 +146,94 @@ def pick_events(session: Session, bid: int, pick_id: int):
              'created_at': e.created_at.isoformat()} for e in session.scalars(
         select(OutboundPickEvent).where(OutboundPickEvent.business_id == bid,
             OutboundPickEvent.pick_id == pick_id).order_by(OutboundPickEvent.id))]
+
+
+def claim_pick(session: Session, bid: int, pick_id: int, actor_id: int):
+    pick = _pick(session, bid, pick_id)
+    _stock_guard(session, bid, pick.warehouse_id, pick.product_id)
+    result = session.execute(update(OutboundPick).where(OutboundPick.id == pick_id,
+        OutboundPick.business_id == bid, OutboundPick.status == 'queued',
+        OutboundPick.assigned_user_id.is_(None)
+    ).values(status='assigned', assigned_user_id=actor_id))
+    if result.rowcount != 1:
+        raise DomainError("Pick already claimed or closed", 409)
+    session.refresh(pick)
+    _event(session, pick, actor_id, 'claimed')
+    session.flush()
+    return pick
+
+
+def start_pick(session: Session, bid: int, pick_id: int, actor_id: int):
+    pick = _pick(session, bid, pick_id)
+    _stock_guard(session, bid, pick.warehouse_id, pick.product_id)
+    result = session.execute(update(OutboundPick).where(OutboundPick.id == pick_id,
+        OutboundPick.business_id == bid, OutboundPick.status == 'assigned',
+        OutboundPick.assigned_user_id == actor_id
+    ).values(status='in_progress'))
+    if result.rowcount != 1:
+        raise DomainError("Only the assigned picker can start this task", 409)
+    session.refresh(pick)
+    _event(session, pick, actor_id, 'started')
+    session.flush()
+    return pick
+
+
+def cancel_pick(session: Session, bid: int, pick_id: int, actor_id: int):
+    pick = _pick(session, bid, pick_id)
+    _stock_guard(session, bid, pick.warehouse_id, pick.product_id)
+    session.refresh(pick)
+    if pick.status not in ACTIVE_PICK:
+        raise DomainError("Only unpicked work can be canceled", 409)
+    result = session.execute(update(BinStock).where(
+        BinStock.business_id == bid, BinStock.warehouse_id == pick.warehouse_id,
+        BinStock.bin_id == pick.bin_id, BinStock.product_id == pick.product_id,
+        BinStock.allocated >= pick.quantity
+    ).values(allocated=BinStock.allocated - pick.quantity))
+    if result.rowcount != 1:
+        raise DomainError("Source bin commitment could not be released", 409)
+    pick.status = 'canceled'
+    _event(session, pick, actor_id, 'canceled')
+    session.flush()
+    return pick
+
+
+def scan_pick(session: Session, bid: int, pick_id: int, actor_id: int,
+              scan_sku: str, scan_bin: str):
+    """Physical removal is atomic with the pick event; accounting stays reserved."""
+    pick = _pick(session, bid, pick_id)
+    _stock_guard(session, bid, pick.warehouse_id, pick.product_id)
+    session.refresh(pick)
+    scans = {'sku': (scan_sku or '').strip().upper(),
+             'bin': (scan_bin or '').strip().upper()}
+    fingerprint = _fingerprint(scans)
+    if pick.status in ('picked', 'packed', 'shipped'):
+        if pick.picked_by == actor_id and pick.scan_fingerprint == fingerprint:
+            return pick, True
+        raise DomainError("Pick already verified by another worker or scan", 409)
+    if pick.status != 'in_progress' or pick.assigned_user_id != actor_id:
+        raise DomainError("Only the assigned active picker can confirm", 409)
+    product = session.scalar(select(Product).where(Product.id == pick.product_id,
+        Product.business_id == bid))
+    bin_row = session.scalar(select(WarehouseBin).where(WarehouseBin.id == pick.bin_id,
+        WarehouseBin.business_id == bid, WarehouseBin.warehouse_id == pick.warehouse_id))
+    if bin_row is None or not bin_row.active:
+        raise DomainError("Source bin is blocked", 409)
+    if scans['sku'] != product.sku or scans['bin'] != bin_row.code:
+        _event(session, pick, actor_id, 'scan_rejected', 'SKU/bin verification mismatch')
+        session.flush()
+        raise DomainError("Outbound scan verification failed: check SKU and source bin", 409)
+    result = session.execute(update(BinStock).where(
+        BinStock.business_id == bid, BinStock.warehouse_id == pick.warehouse_id,
+        BinStock.bin_id == pick.bin_id, BinStock.product_id == pick.product_id,
+        BinStock.on_hand >= pick.quantity, BinStock.allocated >= pick.quantity
+    ).values(on_hand=BinStock.on_hand - pick.quantity,
+             allocated=BinStock.allocated - pick.quantity))
+    if result.rowcount != 1:
+        raise DomainError("Planned bin stock is no longer available", 409)
+    pick.status = 'picked'
+    pick.picked_by = actor_id
+    pick.scan_fingerprint = fingerprint
+    pick.picked_at = utcnow()
+    _event(session, pick, actor_id, 'picked', f'Scanned {product.sku} at {bin_row.code}')
+    session.flush()
+    return pick, False
