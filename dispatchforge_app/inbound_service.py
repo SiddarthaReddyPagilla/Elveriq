@@ -102,3 +102,72 @@ def arrive_notice(session: Session, bid: int, notice_id: int, actor_id: int):
     _event(session, notice, actor_id, 'arrived', f'Dock {notice.dock or "unassigned"}')
     session.refresh(notice)
     return notice, False
+
+def scan_receipt(session: Session, bid: int, notice_id: int, notice_line_id: int,
+                 sku: str, accepted: int, damaged: int, damage_note: str, actor_id: int, key: str):
+    """One atomic disposition, purchase receipt and stock movement per unique scan key."""
+    _key(key)
+    sku = (sku or '').strip().upper()
+    damage_note = (damage_note or '').strip()
+    if type(accepted) is not int or type(damaged) is not int or min(accepted, damaged) < 0 or        accepted + damaged < 1 or accepted + damaged > 1_000_000:
+        raise DomainError('Scan must accept or mark damaged at least one unit')
+    if damaged and not (3 <= len(damage_note) <= 250):
+        raise DomainError('Damaged receipt requires a 3–250 character reason')
+    if len(damage_note) > 250:
+        raise DomainError('Damage note too long')
+    details = dict(notice_id=notice_id, notice_line_id=notice_line_id,
+        sku=sku, accepted=accepted, damaged=damaged, damage_note=damage_note)
+    fingerprint = _fingerprint(details)
+    prev = session.scalar(select(InboundReceipt).where(InboundReceipt.business_id == bid,
+        InboundReceipt.idempotency_key == key))
+    if prev:
+        if prev.request_fingerprint != fingerprint:
+            raise DomainError('Idempotency key reused for different receipt details', 409)
+        return prev, True
+    notice = _notice(session, bid, notice_id, lock=True)
+    if notice.status != 'arrived':
+        raise DomainError('ASN must be arrived before scanning receipts', 409)
+    line = session.scalar(select(InboundNoticeLine).where(
+        InboundNoticeLine.business_id == bid, InboundNoticeLine.notice_id == notice.id,
+        InboundNoticeLine.id == notice_line_id).with_for_update())
+    if line is None:
+        raise DomainError('Inbound notice line not found', 404)
+    po_line = session.scalar(select(PurchaseOrderLine).where(PurchaseOrderLine.id == line.purchase_line_id,
+        PurchaseOrderLine.business_id == bid,
+        PurchaseOrderLine.purchase_order_id == notice.purchase_order_id).with_for_update())
+    product = session.scalar(select(Product).where(Product.id == po_line.product_id,
+        Product.business_id == bid))
+    if sku != product.sku:
+        raise DomainError('Scanned SKU does not match expected purchase item', 409)
+    prev = session.scalar(select(InboundReceipt).where(InboundReceipt.business_id == bid,
+        InboundReceipt.idempotency_key == key))
+    if prev:
+        if prev.request_fingerprint != fingerprint:
+            raise DomainError('Idempotency key reused for different receipt details', 409)
+        return prev, True
+    receipt_id = session.scalar(_insert(session, InboundReceipt).values(
+        business_id=bid, notice_id=notice.id, notice_line_id=line.id,
+        scan_sku=sku, accepted=accepted, damaged=damaged, damage_note=damage_note,
+        idempotency_key=key, request_fingerprint=fingerprint,
+        actor_id=actor_id, created_at=utcnow()
+    ).on_conflict_do_nothing(index_elements=['business_id','idempotency_key'])
+        .returning(InboundReceipt.id))
+    if receipt_id is None:
+        prev = session.scalar(select(InboundReceipt).where(InboundReceipt.business_id == bid,
+            InboundReceipt.idempotency_key == key))
+        if prev is None or prev.request_fingerprint != fingerprint:
+            raise DomainError('Receipt retry key conflict', 409)
+        return prev, True
+    if session.execute(update(InboundNoticeLine).where(
+        InboundNoticeLine.id == line.id, InboundNoticeLine.business_id == bid,
+        InboundNoticeLine.accepted + InboundNoticeLine.damaged + accepted + damaged <= InboundNoticeLine.expected)
+        .values(accepted=InboundNoticeLine.accepted + accepted,
+                damaged=InboundNoticeLine.damaged + damaged)).rowcount != 1:
+        raise DomainError('Scanned ASN quantities exceed expected units', 409)
+    if accepted:
+        receive_purchase_line(session, bid, notice.purchase_order_id,
+                              po_line.id, accepted, actor_id)
+    _event(session, notice, actor_id, 'receipt',
+        f'{sku}: +{accepted} accepted, {damaged} damaged; receipt #{receipt_id}')
+    session.flush()
+    return session.get(InboundReceipt, receipt_id), False
