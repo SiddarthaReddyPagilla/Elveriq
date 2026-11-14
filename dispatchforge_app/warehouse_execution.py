@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
 from .errors import DomainError
 from .inventory_service import clean_text, get_stock
-from .models import (BinStock, Product, StockLevel, User, Warehouse, WarehouseBin,
+from .models import (BinStock, OutboundPick, Product, StockLevel, User, Warehouse, WarehouseBin,
                      WarehouseTask, WarehouseTaskEvent, utcnow)
 
 CODE = re.compile(r"[A-Z0-9][A-Z0-9_.:/-]{0,63}\Z")
@@ -40,7 +40,13 @@ def protected_units_expr():
                       WarehouseTask.product_id == StockLevel.product_id,
                       WarehouseTask.kind == "putaway", WarehouseTask.status.in_(ACTIVE))
                .correlate(StockLevel).scalar_subquery())
-    return placed + pending
+    staged = (select(func.coalesce(func.sum(OutboundPick.quantity), 0))
+              .where(OutboundPick.business_id == StockLevel.business_id,
+                     OutboundPick.warehouse_id == StockLevel.warehouse_id,
+                     OutboundPick.product_id == StockLevel.product_id,
+                     OutboundPick.status.in_(("picked", "packed")))
+              .correlate(StockLevel).scalar_subquery())
+    return placed + pending + staged
 
 
 def code(value: str) -> str:
@@ -115,10 +121,20 @@ def location_summary(session: Session, bid: int, wid: int | None = None) -> list
             WarehouseTask.business_id == bid, WarehouseTask.kind == "putaway",
             WarehouseTask.status.in_(ACTIVE)).group_by(WarehouseTask.warehouse_id, WarehouseTask.product_id)):
         pending[(warehouse_id, product_id)] = qty
+    staged = {}
+    for warehouse_id, product_id, qty in session.execute(select(OutboundPick.warehouse_id,
+            OutboundPick.product_id, func.sum(OutboundPick.quantity)).where(
+            OutboundPick.business_id == bid, OutboundPick.status.in_(("picked", "packed")))
+            .group_by(OutboundPick.warehouse_id, OutboundPick.product_id)):
+        staged[(warehouse_id, product_id)] = qty
     return [{"warehouse_id": s.warehouse_id, "warehouse": name, "sku": sku,
              "on_hand": s.on_hand, "placed": placed.get((s.warehouse_id, s.product_id), 0),
              "unlocated": s.on_hand - placed.get((s.warehouse_id, s.product_id), 0),
-             "pending_putaway": pending.get((s.warehouse_id, s.product_id), 0)}
+             "pending_putaway": pending.get((s.warehouse_id, s.product_id), 0),
+             "staged_outbound": staged.get((s.warehouse_id, s.product_id), 0),
+             "free_unlocated": s.on_hand - placed.get((s.warehouse_id, s.product_id), 0)
+                 - pending.get((s.warehouse_id, s.product_id), 0)
+                 - staged.get((s.warehouse_id, s.product_id), 0)}
             for s, sku, name in session.execute(q.order_by(Warehouse.name, Product.sku))]
 
 
@@ -152,6 +168,12 @@ def _pending_putaway(session: Session, bid: int, wid: int, pid: int) -> int:
         WarehouseTask.business_id == bid, WarehouseTask.warehouse_id == wid,
         WarehouseTask.product_id == pid, WarehouseTask.kind == "putaway",
         WarehouseTask.status.in_(ACTIVE)))
+
+
+def _staged_outbound(session: Session, bid: int, wid: int, pid: int) -> int:
+    return session.scalar(select(func.coalesce(func.sum(OutboundPick.quantity), 0)).where(
+        OutboundPick.business_id == bid, OutboundPick.warehouse_id == wid,
+        OutboundPick.product_id == pid, OutboundPick.status.in_(("picked", "packed"))))
 
 
 def _inbound_to_bin(session: Session, bid: int, bin_id: int) -> int:
@@ -230,7 +252,7 @@ def create_task(session: Session, bid: int, wid: int, sku: str, kind: str,
         session.scalar(select(WarehouseBin).where(WarehouseBin.id == destination.id).with_for_update())
         _capacity_check(session, bid, destination, qty)
     if kind == "putaway":
-        if stock.on_hand - _total_placed(session, bid, wid, product.id) - _pending_putaway(session, bid, wid, product.id) < qty:
+        if stock.on_hand - _total_placed(session, bid, wid, product.id) - _pending_putaway(session, bid, wid, product.id) - _staged_outbound(session, bid, wid, product.id) < qty:
             raise DomainError("Insufficient unlocated stock not already queued for putaway", 409)
     elif not session.scalar(select(BinStock.id).where(BinStock.business_id == bid,
             BinStock.bin_id == from_bin_id, BinStock.product_id == product.id,
@@ -400,7 +422,7 @@ def complete_task(session: Session, bid: int, task_id: int, actor_id: int,
         # This state transition substitutes quantity for pending work without
         # changing the accounting quantity on hand.
         protected = _total_placed(session, bid, task.warehouse_id, product.id)
-        if _stock_guard(session, bid, task.warehouse_id, product.id).on_hand < protected + task.quantity:
+        if _stock_guard(session, bid, task.warehouse_id, product.id).on_hand < protected + _staged_outbound(session, bid, task.warehouse_id, product.id) + task.quantity:
             raise DomainError("Warehouse stock no longer supports this putaway", 409)
     if task.kind != "unlocate":
         _credit_bin(session, task)

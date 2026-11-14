@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from .errors import DomainError
 from .inventory_service import clean_text, get_stock
 from .warehouse_execution import protected_units_expr
-from .models import CustomerOrder, OrderLine, Product, StockLevel, StockMovement, Warehouse
+from .models import CustomerOrder, OrderLine, OutboundPick, Product, StockLevel, StockMovement, Warehouse
 
 
 def create_order(session: Session, business_id: int, warehouse_id: int, customer_name: str,
@@ -67,8 +67,22 @@ def change_order_status(session: Session, business_id: int, order_id: int,
         raise DomainError("Order not found", 404)
     if order.status != "reserved":
         raise DomainError("Only reserved orders can be fulfilled or canceled", 409)
-    for line in session.scalars(select(OrderLine).where(OrderLine.order_id == order.id,
-                                                        OrderLine.business_id == business_id)):
+    lines = session.scalars(select(OrderLine).where(OrderLine.order_id == order.id,
+                        OrderLine.business_id == business_id).order_by(OrderLine.product_id)).all()
+    # Synchronize against outbound pick planning, which locks these same SKU rows.
+    for line in lines:
+        locked = session.scalar(select(StockLevel).where(StockLevel.business_id == business_id,
+            StockLevel.warehouse_id == order.warehouse_id,
+            StockLevel.product_id == line.product_id).with_for_update())
+        if locked is None:
+            raise DomainError("Inventory record is missing", 409)
+    session.refresh(order)
+    if order.status != "reserved":
+        raise DomainError("Order is no longer reserved", 409)
+    if session.scalar(select(OutboundPick.id).where(OutboundPick.business_id == business_id,
+            OutboundPick.order_id == order.id, OutboundPick.status != "canceled").limit(1)):
+        raise DomainError("Order has active outbound picks; complete packing/dispatch or cancel unpicked work", 409)
+    for line in lines:
         stock = session.scalar(select(StockLevel).where(
             StockLevel.business_id == business_id,
             StockLevel.warehouse_id == order.warehouse_id,
