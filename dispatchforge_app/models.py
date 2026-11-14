@@ -441,3 +441,18 @@ class InboundNotice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+class InboundNoticeLine(Base):
+    """Expected, accepted and damaged units; damage never increases on-hand."""
+    __tablename__ = "inbound_notice_lines"
+    __table_args__ = (UniqueConstraint("notice_id", "purchase_line_id", name="uq_inbound_notice_po_line"),
+        CheckConstraint("expected > 0", name="inbound_expected_positive"),
+        CheckConstraint("accepted >= 0 AND damaged >= 0 AND accepted + damaged <= expected",
+            name="inbound_disposition_within_expected"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    notice_id: Mapped[int] = mapped_column(ForeignKey("inbound_notices.id"), nullable=False, index=True)
+    purchase_line_id: Mapped[int] = mapped_column(ForeignKey("purchase_order_lines.id"), nullable=False)
+    expected: Mapped[int] = mapped_column(Integer, nullable=False)
+    accepted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    damaged: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
