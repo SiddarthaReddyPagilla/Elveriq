@@ -191,3 +191,15 @@ def close_notice(session: Session, bid: int, notice_id: int, actor_id: int, note
     _event(session, notice, actor_id, 'closed', f'{short} units short; {note}'[:250])
     session.refresh(notice)
     return notice, short
+
+def cancel_notice(session: Session, bid: int, notice_id: int, actor_id: int, note: str = ''):
+    notice = _notice(session, bid, notice_id, lock=True)
+    if notice.status not in ('planned', 'arrived'):
+        raise DomainError('Only open ASNs can be canceled', 409)
+    if session.scalar(select(InboundReceipt.id).where(InboundReceipt.business_id == bid,
+        InboundReceipt.notice_id == notice.id).limit(1)):
+        raise DomainError('An ASN with recorded dispositions cannot be canceled', 409)
+    notice.status = 'canceled'
+    _event(session, notice, actor_id, 'canceled', note)
+    session.flush()
+    return notice
