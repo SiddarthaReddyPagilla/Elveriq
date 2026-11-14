@@ -203,3 +203,28 @@ def cancel_notice(session: Session, bid: int, notice_id: int, actor_id: int, not
     _event(session, notice, actor_id, 'canceled', note)
     session.flush()
     return notice
+
+def list_notices(session: Session, bid: int, warehouse_id: int | None = None):
+    q = select(InboundNotice).where(InboundNotice.business_id == bid)
+    if warehouse_id is not None:
+        q = q.where(InboundNotice.warehouse_id == warehouse_id)
+    result = []
+    for n in session.scalars(q.order_by(InboundNotice.id.desc()).limit(200)):
+        lines = session.execute(select(InboundNoticeLine, Product.sku)
+            .join(PurchaseOrderLine, PurchaseOrderLine.id == InboundNoticeLine.purchase_line_id)
+            .join(Product, Product.id == PurchaseOrderLine.product_id)
+            .where(InboundNoticeLine.notice_id == n.id, InboundNoticeLine.business_id == bid,
+                   PurchaseOrderLine.business_id == bid, Product.business_id == bid)
+            .order_by(InboundNoticeLine.id)).all()
+        items = [{'id': l.id, 'purchase_line_id': l.purchase_line_id, 'sku': sku,
+            'expected': l.expected, 'accepted': l.accepted, 'damaged': l.damaged,
+            'short': l.expected-l.accepted-l.damaged} for l,sku in lines]
+        result.append({'id': n.id, 'reference': n.reference,
+            'supplier_reference': n.supplier_reference, 'purchase_order_id': n.purchase_order_id,
+            'warehouse_id': n.warehouse_id, 'dock': n.dock, 'status': n.status,
+            'created_at': n.created_at.isoformat(), 'items': items,
+            'expected': sum(x['expected'] for x in items),
+            'accepted': sum(x['accepted'] for x in items),
+            'damaged': sum(x['damaged'] for x in items),
+            'short': sum(x['short'] for x in items)})
+    return result
