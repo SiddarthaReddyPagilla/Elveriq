@@ -194,6 +194,12 @@ def close_notice(session: Session, bid: int, notice_id: int, actor_id: int, note
         InboundNotice.business_id == bid, InboundNotice.status == 'arrived')
         .values(status='closed', closed_by=actor_id, closed_at=utcnow())).rowcount != 1:
         raise DomainError('Inbound notice closure state changed', 409)
+    if short:
+        from .exception_service import open_case
+        open_case(session, bid, notice.warehouse_id, 'inbound_shortage', 'medium',
+            'inbound_notice', notice.id, f'ASN {notice.reference} short',
+            f'{short} expected units missing at close-out. {note}',
+            actor_id, f'inbound-short-{notice.id}')
     _event(session, notice, actor_id, 'closed', f'{short} units short; {note}'[:250])
     session.refresh(notice)
     return notice, short
