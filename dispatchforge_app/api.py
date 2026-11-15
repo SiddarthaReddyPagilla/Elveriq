@@ -42,6 +42,8 @@ from .exception_service import (open_case,list_cases,assign_case,acknowledge_cas
 
 from .shipment_tracking import (record_milestone,shipment_timeline,shipment_overview)
 
+from .operations_metrics import operational_metrics
+
 router = APIRouter(prefix="/api")
 
 
@@ -1146,3 +1148,9 @@ def tracking_add(shipment_id:int,payload:ShipmentMilestoneIn,request:Request,
     session.commit()
     return {'id':row.id,'shipment_id':row.shipment_id,'milestone':row.milestone,
             'replayed':replayed,'source':'manual_operator_entry'}
+
+@router.get('/operations/metrics')
+def operations_metrics_api(request:Request,
+    warehouse_id:int|None=Query(default=None,gt=0),session:Session=Depends(get_db)):
+    bid=read_access(request,session,False)
+    return operational_metrics(session,bid,warehouse_id)
