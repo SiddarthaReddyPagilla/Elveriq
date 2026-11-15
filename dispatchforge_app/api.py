@@ -1103,3 +1103,16 @@ def exception_reopen(case_id:int,payload:ExceptionNoteIn,request:Request,
     case=reopen_case(session,actor.business_id,case_id,actor.id,payload.note)
     session.commit()
     return {'id':case.id,'status':case.status}
+
+@router.get('/exceptions/{case_id}/events')
+def exception_events(case_id:int,request:Request,session:Session=Depends(get_db)):
+    return case_history(session,read_access(request,session,False),case_id)
+
+
+@router.post('/exceptions/{case_id}/notes')
+def exception_note(case_id:int,payload:ExceptionNoteIn,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    case=comment_case(session,actor.business_id,case_id,actor.id,payload.note)
+    session.commit()
+    return {'id':case.id,'status':case.status}
