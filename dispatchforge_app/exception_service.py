@@ -83,3 +83,29 @@ def open_case(session:Session,bid:int,warehouse_id:int|None,category:str,severit
     _event(session,case,actor_id,'opened',f'{category}/{severity}')
     session.flush()
     return case,False
+
+def list_cases(session:Session,bid:int,status:str|None=None,warehouse_id:int|None=None,
+               severity:str|None=None):
+    q=select(WarehouseException).where(WarehouseException.business_id==bid)
+    if status:
+        if status not in {'open','acknowledged','resolved'}:raise DomainError('Invalid case status')
+        q=q.where(WarehouseException.status==status)
+    if severity:
+        if severity not in SLA_HOURS:raise DomainError('Invalid severity')
+        q=q.where(WarehouseException.severity==severity)
+    if warehouse_id is not None:q=q.where(WarehouseException.warehouse_id==warehouse_id)
+    now=utcnow()
+    output=[]
+    for case in session.scalars(q.order_by(WarehouseException.id.desc()).limit(200)):
+        due=case.due_at
+        # SQLite returns naive UTC datetimes even when timezone=True.
+        if due.tzinfo is None:due=due.replace(tzinfo=now.tzinfo)
+        output.append({'id':case.id,'warehouse_id':case.warehouse_id,
+            'source_type':case.source_type,'source_id':case.source_id,
+            'category':case.category,'severity':case.severity,
+            'title':case.title,'detail':case.detail,'status':case.status,
+            'assigned_user_id':case.assigned_user_id,'created_by':case.created_by,
+            'due_at':case.due_at.isoformat(),'overdue':case.status!='resolved' and due<now,
+            'created_at':case.created_at.isoformat(),
+            'resolved_at':case.resolved_at.isoformat() if case.resolved_at else None})
+    return output
