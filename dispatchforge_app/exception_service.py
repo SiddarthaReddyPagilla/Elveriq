@@ -44,3 +44,42 @@ def _source_warehouse(session,bid,source_type,source_id,warehouse_id):
     if warehouse_id is not None and warehouse_id!=record.warehouse_id:
         raise DomainError('Exception source belongs to a different warehouse',409)
     return record.warehouse_id
+
+def open_case(session:Session,bid:int,warehouse_id:int|None,category:str,severity:str,
+              source_type:str,source_id:int|None,title:str,detail:str,actor_id:int,key:str):
+    """Incident creation is transaction-local and deduplicated per tenant."""
+    title=(title or '').strip()
+    detail=(detail or '').strip()
+    if category not in CATEGORIES or severity not in SLA_HOURS:
+        raise DomainError('Unknown exception category or severity')
+    if not (3<=len(title)<=160) or len(detail)>500:
+        raise DomainError('Exception title must be 3–160 characters; details at most 500')
+    if not isinstance(key,str) or not KEY.fullmatch(key):
+        raise DomainError('Idempotency-Key required (8–128 safe characters)')
+    actual_warehouse=_source_warehouse(session,bid,source_type,source_id,warehouse_id)
+    details=dict(warehouse_id=actual_warehouse,category=category,severity=severity,
+        source_type=source_type,source_id=source_id,title=title,detail=detail)
+    fp=_fingerprint(details)
+    prev=session.scalar(select(WarehouseException).where(
+        WarehouseException.business_id==bid,WarehouseException.dedupe_key==key))
+    if prev:
+        if prev.request_fingerprint!=fp:
+            raise DomainError('Exception key already used with different details',409)
+        return prev,True
+    inserted=session.scalar((pg_insert(WarehouseException) if session.get_bind().dialect.name=='postgresql'
+        else sqlite_insert(WarehouseException)).values(
+        business_id=bid,warehouse_id=actual_warehouse,category=category,severity=severity,
+        source_type=source_type,source_id=source_id,title=title,detail=detail,
+        status='open',dedupe_key=key,request_fingerprint=fp,created_by=actor_id,
+        due_at=utcnow()+timedelta(hours=SLA_HOURS[severity]),created_at=utcnow()
+    ).on_conflict_do_nothing(index_elements=['business_id','dedupe_key']).returning(WarehouseException.id))
+    if inserted is None:
+        prev=session.scalar(select(WarehouseException).where(
+            WarehouseException.business_id==bid,WarehouseException.dedupe_key==key))
+        if prev is None or prev.request_fingerprint!=fp:
+            raise DomainError('Exception key conflict',409)
+        return prev,True
+    case=session.get(WarehouseException,inserted)
+    _event(session,case,actor_id,'opened',f'{category}/{severity}')
+    session.flush()
+    return case,False
