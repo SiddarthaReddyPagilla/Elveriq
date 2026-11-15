@@ -512,3 +512,14 @@ class WarehouseException(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+class WarehouseExceptionEvent(Base):
+    """Append-only case assignment, acknowledgment and resolution evidence."""
+    __tablename__ = "warehouse_exception_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    exception_id: Mapped[int] = mapped_column(ForeignKey("warehouse_exceptions.id"), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    note: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
