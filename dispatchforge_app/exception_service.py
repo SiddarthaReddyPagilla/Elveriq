@@ -120,3 +120,17 @@ def assign_case(session:Session,bid:int,case_id:int,actor_id:int,assignee_id:int
     _event(session,case,actor_id,'assigned',f'User #{worker.id}')
     session.flush()
     return case
+
+def acknowledge_case(session:Session,bid:int,case_id:int,actor_id:int,manager:bool):
+    case=_case(session,bid,case_id,lock=True)
+    if case.status!='open':raise DomainError('Only open cases may be acknowledged',409)
+    if not manager and case.assigned_user_id!=actor_id:
+        raise DomainError('Only assigned worker may acknowledge',403)
+    changed=session.execute(update(WarehouseException).where(
+        WarehouseException.id==case.id,WarehouseException.business_id==bid,
+        WarehouseException.status=='open').values(
+        status='acknowledged',acknowledged_at=utcnow()))
+    if changed.rowcount!=1:raise DomainError('Exception status changed',409)
+    _event(session,case,actor_id,'acknowledged')
+    session.refresh(case)
+    return case
