@@ -57,3 +57,29 @@ def record_milestone(session:Session,bid:int,shipment_id:int,milestone:str,
         return prev,True
     session.flush()
     return session.get(ShipmentTrackingUpdate,inserted),False
+
+def shipment_timeline(session:Session,bid:int,shipment_id:int):
+    _shipment(session,bid,shipment_id)
+    records=session.scalars(select(ShipmentTrackingUpdate).where(
+        ShipmentTrackingUpdate.business_id==bid,
+        ShipmentTrackingUpdate.shipment_id==shipment_id).order_by(ShipmentTrackingUpdate.id)).all()
+    return [{'id':e.id,'milestone':e.milestone,'location':e.location,
+        'note':e.note,'recorded_by':e.recorded_by,'created_at':e.created_at.isoformat(),
+        'source':'manual_operator_entry'} for e in records]
+
+
+def shipment_overview(session:Session,bid:int):
+    rows=session.scalars(select(OutboundShipment).where(OutboundShipment.business_id==bid)
+        .order_by(OutboundShipment.id.desc()).limit(200)).all()
+    result=[]
+    for ship in rows:
+        latest=session.scalar(select(ShipmentTrackingUpdate).where(
+            ShipmentTrackingUpdate.business_id==bid,
+            ShipmentTrackingUpdate.shipment_id==ship.id)
+            .order_by(ShipmentTrackingUpdate.id.desc()).limit(1))
+        result.append({'shipment_id':ship.id,'order_id':ship.order_id,'carrier':ship.carrier,
+            'tracking_reference':ship.tracking_reference,
+            'milestone':latest.milestone if latest else 'dispatched',
+            'latest_at':(latest.created_at if latest else ship.shipped_at).isoformat(),
+            'verified_by_carrier':False})
+    return result
