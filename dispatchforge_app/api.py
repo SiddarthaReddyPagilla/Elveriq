@@ -40,6 +40,8 @@ from .inbound_service import (create_notice, arrive_notice, scan_receipt, close_
 from .exception_service import (open_case,list_cases,assign_case,acknowledge_case,
     resolve_case,reopen_case,comment_case,case_history)
 
+from .shipment_tracking import (record_milestone,shipment_timeline,shipment_overview)
+
 router = APIRouter(prefix="/api")
 
 
@@ -1116,3 +1118,31 @@ def exception_note(case_id:int,payload:ExceptionNoteIn,request:Request,
     case=comment_case(session,actor.business_id,case_id,actor.id,payload.note)
     session.commit()
     return {'id':case.id,'status':case.status}
+
+class ShipmentMilestoneIn(BaseModel):
+    milestone: str = Field(min_length=3,max_length=24)
+    location: str = Field(default='',max_length=120)
+    note: str = Field(default='',max_length=250)
+
+
+@router.get('/shipping/tracking')
+def tracking_overview(request:Request,session:Session=Depends(get_db)):
+    return shipment_overview(session,read_access(request,session,False))
+
+
+@router.get('/shipping/shipments/{shipment_id}/events')
+def tracking_history(shipment_id:int,request:Request,session:Session=Depends(get_db)):
+    return shipment_timeline(session,read_access(request,session,False),shipment_id)
+
+
+@router.post('/shipping/shipments/{shipment_id}/events',status_code=201)
+def tracking_add(shipment_id:int,payload:ShipmentMilestoneIn,request:Request,
+    idempotency_key:str=Header(default=''),x_csrf_token:str=Header(default=''),
+    session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    row,replayed=record_milestone(session,actor.business_id,shipment_id,
+        payload.milestone,payload.location,payload.note,actor.id,idempotency_key)
+    session.commit()
+    return {'id':row.id,'shipment_id':row.shipment_id,'milestone':row.milestone,
+            'replayed':replayed,'source':'manual_operator_entry'}
