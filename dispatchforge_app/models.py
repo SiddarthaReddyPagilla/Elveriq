@@ -485,3 +485,30 @@ class InboundNoticeEvent(Base):
     note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
     actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class WarehouseException(Base):
+    """Operator-owned operational incident with verified tenant-bound source."""
+    __tablename__ = "warehouse_exceptions"
+    __table_args__ = (UniqueConstraint("business_id", "dedupe_key", name="uq_warehouse_exception_key"),
+        CheckConstraint("status IN ('open','acknowledged','resolved')", name="warehouse_exception_status_valid"),
+        CheckConstraint("severity IN ('low','medium','high','critical')", name="warehouse_exception_severity_valid"),
+        CheckConstraint("category IN ('manual','inbound_damage','inbound_shortage','outbound_short_pick','shipment_issue','stock_discrepancy')", name="warehouse_exception_category_valid"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_id: Mapped[int | None] = mapped_column(Integer)
+    category: Mapped[str] = mapped_column(String(40), nullable=False)
+    severity: Mapped[str] = mapped_column(String(12), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    detail: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default='open', nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    resolved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
