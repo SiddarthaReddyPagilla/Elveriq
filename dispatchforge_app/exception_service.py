@@ -149,3 +149,18 @@ def resolve_case(session:Session,bid:int,case_id:int,actor_id:int,note:str):
     _event(session,case,actor_id,'resolved',note)
     session.refresh(case)
     return case
+
+def reopen_case(session:Session,bid:int,case_id:int,actor_id:int,note:str):
+    case=_case(session,bid,case_id,lock=True)
+    note=(note or '').strip()
+    if not 3<=len(note)<=500:raise DomainError('Reopen reason must be 3–500 characters')
+    if case.status!='resolved':raise DomainError('Only resolved cases may be reopened',409)
+    changed=session.execute(update(WarehouseException).where(
+        WarehouseException.id==case.id,WarehouseException.business_id==bid,
+        WarehouseException.status=='resolved').values(
+        status='open',resolved_by=None,resolved_at=None,
+        due_at=utcnow()+timedelta(hours=SLA_HOURS[case.severity])))
+    if changed.rowcount!=1:raise DomainError('Exception reopening state changed',409)
+    _event(session,case,actor_id,'reopened',note)
+    session.refresh(case)
+    return case
