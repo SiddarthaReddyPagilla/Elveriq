@@ -172,3 +172,11 @@ def comment_case(session:Session,bid:int,case_id:int,actor_id:int,note:str):
     _event(session,case,actor_id,'commented',note)
     session.flush()
     return case
+
+def case_history(session:Session,bid:int,case_id:int):
+    _case(session,bid,case_id)
+    return [{'id':event.id,'action':event.action,'actor_id':event.actor_id,
+        'note':event.note,'created_at':event.created_at.isoformat()}
+        for event in session.scalars(select(WarehouseExceptionEvent).where(
+        WarehouseExceptionEvent.business_id==bid,
+        WarehouseExceptionEvent.exception_id==case_id).order_by(WarehouseExceptionEvent.id))]
