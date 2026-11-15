@@ -523,3 +523,19 @@ class WarehouseExceptionEvent(Base):
     note: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class ShipmentTrackingUpdate(Base):
+    """Manually recorded shipment milestones, NOT carrier-verified tracking."""
+    __tablename__ = "shipment_tracking_updates"
+    __table_args__ = (UniqueConstraint("business_id", "idempotency_key", name="uq_tracking_retry_key"),
+        CheckConstraint("milestone IN ('in_transit','out_for_delivery','delayed','exception','delivered')", name="tracking_milestone_valid"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    shipment_id: Mapped[int] = mapped_column(ForeignKey("outbound_shipments.id"), nullable=False, index=True)
+    milestone: Mapped[str] = mapped_column(String(24), nullable=False)
+    location: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    note: Mapped[str] = mapped_column(String(250), default="", nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
