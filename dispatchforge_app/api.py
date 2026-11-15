@@ -37,6 +37,9 @@ from .warehouse_execution import (create_bin, list_bins, list_bin_stock, locatio
 from .inbound_service import (create_notice, arrive_notice, scan_receipt, close_notice,
     cancel_notice, list_notices, receipt_history, notice_events)
 
+from .exception_service import (open_case,list_cases,assign_case,acknowledge_case,
+    resolve_case,reopen_case,comment_case,case_history)
+
 router = APIRouter(prefix="/api")
 
 
@@ -1026,3 +1029,20 @@ def inbound_receipts(notice_id: int, request: Request, session: Session = Depend
 @router.get('/inbound/notices/{notice_id}/events')
 def inbound_events(notice_id: int, request: Request, session: Session = Depends(get_db)):
     return notice_events(session, read_access(request, session, False), notice_id)
+
+class ExceptionCreateIn(BaseModel):
+    warehouse_id: int | None = Field(default=None,gt=0)
+    source_type: str = Field(default='manual',max_length=32)
+    source_id: int | None = Field(default=None,gt=0)
+    category: str = Field(default='manual',max_length=40)
+    severity: str = Field(default='medium',max_length=12)
+    title: str = Field(min_length=3,max_length=160)
+    detail: str = Field(default='',max_length=500)
+
+
+class ExceptionAssignIn(BaseModel):
+    user_id: int = Field(gt=0)
+
+
+class ExceptionNoteIn(BaseModel):
+    note: str = Field(min_length=1,max_length=500)
