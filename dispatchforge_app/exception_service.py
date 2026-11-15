@@ -109,3 +109,14 @@ def list_cases(session:Session,bid:int,status:str|None=None,warehouse_id:int|Non
             'created_at':case.created_at.isoformat(),
             'resolved_at':case.resolved_at.isoformat() if case.resolved_at else None})
     return output
+
+def assign_case(session:Session,bid:int,case_id:int,actor_id:int,assignee_id:int):
+    case=_case(session,bid,case_id,lock=True)
+    if case.status=='resolved':raise DomainError('Resolved case cannot be reassigned',409)
+    worker=session.scalar(select(User).where(User.id==assignee_id,User.business_id==bid,
+        User.role.in_(('owner','manager','staff'))))
+    if worker is None:raise DomainError('Active assignee not found in this workspace',404)
+    case.assigned_user_id=worker.id
+    _event(session,case,actor_id,'assigned',f'User #{worker.id}')
+    session.flush()
+    return case
