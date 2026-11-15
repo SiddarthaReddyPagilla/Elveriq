@@ -164,3 +164,11 @@ def reopen_case(session:Session,bid:int,case_id:int,actor_id:int,note:str):
     _event(session,case,actor_id,'reopened',note)
     session.refresh(case)
     return case
+
+def comment_case(session:Session,bid:int,case_id:int,actor_id:int,note:str):
+    case=_case(session,bid,case_id,lock=True)
+    note=(note or '').strip()
+    if not 1<=len(note)<=500:raise DomainError('Case note must be 1–500 characters')
+    _event(session,case,actor_id,'commented',note)
+    session.flush()
+    return case
