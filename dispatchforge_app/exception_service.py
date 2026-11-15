@@ -134,3 +134,18 @@ def acknowledge_case(session:Session,bid:int,case_id:int,actor_id:int,manager:bo
     _event(session,case,actor_id,'acknowledged')
     session.refresh(case)
     return case
+
+def resolve_case(session:Session,bid:int,case_id:int,actor_id:int,note:str):
+    case=_case(session,bid,case_id,lock=True)
+    note=(note or '').strip()
+    if not 3<=len(note)<=500:raise DomainError('Resolution reason must be 3–500 characters')
+    if case.status not in ('open','acknowledged'):
+        raise DomainError('Exception is already resolved',409)
+    changed=session.execute(update(WarehouseException).where(
+        WarehouseException.id==case.id,WarehouseException.business_id==bid,
+        WarehouseException.status.in_(('open','acknowledged'))).values(
+        status='resolved',resolved_by=actor_id,resolved_at=utcnow()))
+    if changed.rowcount!=1:raise DomainError('Exception resolution state changed',409)
+    _event(session,case,actor_id,'resolved',note)
+    session.refresh(case)
+    return case
