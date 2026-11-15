@@ -1064,3 +1064,42 @@ def exception_open(payload:ExceptionCreateIn,request:Request,
         payload.title,payload.detail,actor.id,idempotency_key)
     session.commit()
     return {'id':case.id,'status':case.status,'replayed':replayed}
+
+@router.post('/exceptions/{case_id}/assign')
+def exception_assign(case_id:int,payload:ExceptionAssignIn,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    case=assign_case(session,actor.business_id,case_id,actor.id,payload.user_id)
+    session.commit()
+    return {'id':case.id,'status':case.status,'assigned_user_id':case.assigned_user_id}
+
+
+@router.post('/exceptions/{case_id}/acknowledge')
+def exception_acknowledge(case_id:int,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    case=acknowledge_case(session,actor.business_id,case_id,actor.id,
+        actor.role in ('owner','manager'))
+    session.commit()
+    return {'id':case.id,'status':case.status}
+
+
+@router.post('/exceptions/{case_id}/resolve')
+def exception_resolve(case_id:int,payload:ExceptionNoteIn,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    case=resolve_case(session,actor.business_id,case_id,actor.id,payload.note)
+    session.commit()
+    return {'id':case.id,'status':case.status}
+
+
+@router.post('/exceptions/{case_id}/reopen')
+def exception_reopen(case_id:int,payload:ExceptionNoteIn,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    case=reopen_case(session,actor.business_id,case_id,actor.id,payload.note)
+    session.commit()
+    return {'id':case.id,'status':case.status}
