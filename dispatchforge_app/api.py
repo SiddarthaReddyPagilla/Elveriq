@@ -1154,3 +1154,27 @@ def operations_metrics_api(request:Request,
     warehouse_id:int|None=Query(default=None,gt=0),session:Session=Depends(get_db)):
     bid=read_access(request,session,False)
     return operational_metrics(session,bid,warehouse_id)
+
+@router.get('/outbound/orders/{order_id}/manifest.csv')
+def outbound_carton_manifest(order_id:int,request:Request,session:Session=Depends(get_db)):
+    from .models import OutboundCarton,OutboundCartonItem
+    bid=read_access(request,session,False)
+    order=_order(session,bid,order_id)
+    cartons=session.scalars(select(OutboundCarton).where(
+        OutboundCarton.business_id==bid,OutboundCarton.order_id==order.id)).all()
+    if not cartons or any(c.status not in ('sealed','shipped') for c in cartons):
+        raise DomainError('Manifest requires all cartons sealed or shipped',409)
+    stream=io.StringIO()
+    writer=csv.writer(stream)
+    writer.writerow(['order_id','warehouse_id','carton_code','pick_id','sku','quantity','carton_status'])
+    for carton in cartons:
+        rows=session.execute(select(OutboundCartonItem,Product.sku).join(
+            OutboundPick,OutboundPick.id==OutboundCartonItem.pick_id).join(
+            Product,Product.id==OutboundPick.product_id).where(
+            OutboundCartonItem.business_id==bid,OutboundCartonItem.carton_id==carton.id,
+            OutboundPick.business_id==bid,Product.business_id==bid)).all()
+        for item,sku in rows:
+            writer.writerow([order.id,order.warehouse_id,csv_cell(carton.code),item.pick_id,
+                csv_cell(sku),item.quantity,csv_cell(carton.status)])
+    return Response(stream.getvalue(),media_type='text/csv; charset=utf-8',
+        headers={'Content-Disposition':f'attachment; filename="elveriq-manifest-{order.id}.csv"'})
