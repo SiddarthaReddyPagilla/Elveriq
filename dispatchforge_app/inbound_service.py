@@ -167,6 +167,12 @@ def scan_receipt(session: Session, bid: int, notice_id: int, notice_line_id: int
     if accepted:
         receive_purchase_line(session, bid, notice.purchase_order_id,
                               po_line.id, accepted, actor_id)
+    if damaged:
+        from .exception_service import open_case
+        open_case(session, bid, notice.warehouse_id, 'inbound_damage', 'high',
+            'inbound_notice', notice.id, f'Damaged inbound goods: {sku}',
+            f'{damaged} units held outside saleable inventory; receipt #{receipt_id}. {damage_note}',
+            actor_id, f'inbound-damage-{receipt_id}')
     _event(session, notice, actor_id, 'receipt',
         f'{sku}: +{accepted} accepted, {damaged} damaged; receipt #{receipt_id}')
     session.flush()
