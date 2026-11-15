@@ -1046,3 +1046,21 @@ class ExceptionAssignIn(BaseModel):
 
 class ExceptionNoteIn(BaseModel):
     note: str = Field(min_length=1,max_length=500)
+
+@router.get('/exceptions')
+def exception_queue(request:Request,status:str|None=None,
+    warehouse_id:int|None=Query(default=None,gt=0),severity:str|None=None,
+    session:Session=Depends(get_db)):
+    return list_cases(session,read_access(request,session,False),status,warehouse_id,severity)
+
+
+@router.post('/exceptions',status_code=201)
+def exception_open(payload:ExceptionCreateIn,request:Request,
+    idempotency_key:str=Header(default=''),x_csrf_token:str=Header(default=''),
+    session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    case,replayed=open_case(session,actor.business_id,payload.warehouse_id,
+        payload.category,payload.severity,payload.source_type,payload.source_id,
+        payload.title,payload.detail,actor.id,idempotency_key)
+    session.commit()
+    return {'id':case.id,'status':case.status,'replayed':replayed}
