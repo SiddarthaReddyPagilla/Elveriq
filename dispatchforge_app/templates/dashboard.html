@@ -10,6 +10,9 @@
       <button class="side-link" data-section="locations">▤ &nbsp; Storage bins</button>
       <button class="side-link" data-section="tasks">☷ &nbsp; Warehouse tasks</button>
       {% if not is_demo %}<button class="side-link" data-section="outbound">▤ &nbsp; Pick · Pack · Dispatch</button>{% endif %}
+      {% if not is_demo %}<button class="side-link" data-section="inbound">♧ &nbsp; Inbound dock &amp; ASN</button>{% endif %}
+      {% if not is_demo %}<button class="side-link" data-section="exceptions">⚑ &nbsp; Operations exceptions</button>{% endif %}
+      {% if not is_demo %}<button class="side-link" data-section="shipping">⇥ &nbsp; Shipment tracking</button>{% endif %}
       <button class="side-link" data-section="orders">◷ &nbsp; Scheduled orders</button>
       <button class="side-link" data-section="purchasing">♧ &nbsp; Purchasing &amp; receiving</button>
       <button class="side-link" data-section="transfers">↔ &nbsp; Transfers</button>
@@ -184,6 +187,60 @@
       {% endif %}
       <div class="panel"><div class="panel-title"><h3>Purchase orders</h3></div><div id="purchases-table" class="table-wrap"></div></div>
     </section>
+    {% if not is_demo %}
+    <section class="section-view hidden" data-view="inbound" id="ops-inbound">
+      <div class="section-title"><div><h2>Inbound dock &amp; receiving</h2><p>Plan against existing purchase orders, confirm arrival, scan correct SKUs and document damaged or short goods. Damaged items are excluded from saleable stock.</p></div></div>
+      {% if role in ['owner','manager'] %}
+      <form id="asn-create-form" class="panel order-form"><h3>Plan supplier ASN</h3><div class="execution-fields">
+        <label>Purchase order<select name="purchase_order_id" id="asn-po-select" required></select></label>
+        <label>Purchase order item<select name="purchase_line_id" id="asn-line-select" required></select></label>
+        <label>Expected units<input name="expected" type="number" min="1" required value="1"></label>
+        <label>Unique ASN reference<input name="reference" maxlength="100" required placeholder="ASN-1042"></label>
+        <label>Supplier reference<input name="supplier_reference" maxlength="120" placeholder="Supplier manifest number"></label>
+        <label>Dock code<input name="dock" maxlength="64" placeholder="DOCK-02"></label>
+      </div><p class="small muted">The dashboard begins with one PO line per ASN; the API supports up to 100. Planning an ASN does not increase inventory.</p>
+      <button class="button" type="submit">Create inbound notice</button></form>
+      {% endif %}
+      <form id="asn-scan-form" class="panel order-form"><h3>Scan arriving units</h3><div class="execution-fields">
+        <label>Arrived ASN<select name="notice_id" id="asn-scan-notice" required></select></label>
+        <label>Expected line<select name="line_id" id="asn-scan-line" required></select></label>
+        <label>Scan SKU<input name="scan_sku" id="asn-scan-sku" maxlength="80" required autocomplete="off" placeholder="Scan barcode / SKU"></label>
+        <label>Accepted units<input name="accepted" type="number" min="0" max="1000000" required value="1"></label>
+        <label>Damaged units<input name="damaged" type="number" min="0" max="1000000" required value="0"></label>
+        <label>Damage reason<input name="damage_note" maxlength="250" placeholder="Required if damaged units &gt; 0"></label>
+      </div><button class="button" type="submit">Verify &amp; receive</button></form>
+      <div class="panel"><div class="panel-title"><h3>Supplier delivery manifests</h3></div><div id="asn-table" class="table-wrap"></div></div>
+    </section>
+    <section class="section-view hidden" data-view="exceptions" id="ops-exceptions">
+      <div class="section-title"><div><h2>Operations exception center</h2><p>Track receiving damage, short shipments and manually reported problems, with ownership, deadlines and evidence of resolution.</p></div></div>
+      <div class="stat-grid">
+        <div class="stat-card"><span>Open exceptions</span><strong id="ops-kpi-open">—</strong></div>
+        <div class="stat-card"><span>Overdue exceptions</span><strong id="ops-kpi-overdue">—</strong></div>
+        <div class="stat-card"><span>Arrived ASNs</span><strong id="ops-kpi-inbound">—</strong></div>
+        <div class="stat-card"><span>Staged outbound units</span><strong id="ops-kpi-staged">—</strong></div>
+      </div>
+      <form id="ops-case-form" class="panel order-form"><h3>Report an operational issue</h3><div class="execution-fields">
+        <label>Warehouse<select class="warehouse-select" name="warehouse_id" required></select></label>
+        <label>Severity<select name="severity"><option value="low">Low · 72h</option><option value="medium" selected>Medium · 24h</option><option value="high">High · 8h</option><option value="critical">Critical · 2h</option></select></label>
+        <label>Issue title<input name="title" minlength="3" maxlength="160" placeholder="Damaged scanner at receiving" required></label>
+        <label>Details<input name="detail" maxlength="500" placeholder="Affected dock / operator / next step"></label>
+      </div><button class="button" type="submit">Open incident</button></form>
+      <div class="panel"><div class="panel-title"><h3>Case ownership &amp; resolution</h3></div><div id="ops-exceptions-table" class="table-wrap"></div></div>
+      <p id="ops-notice" class="small" aria-live="polite"></p>
+    </section>
+    <section class="section-view hidden" data-view="shipping" id="ops-shipping">
+      <div class="section-title"><div><h2>Post-dispatch shipment tracking</h2><p>View manually recorded carrier milestones and download verified carton manifests. These milestones are operator-entered, not carrier-confirmed.</p></div></div>
+      {% if role in ['owner','manager'] %}
+      <form id="ops-milestone-form" class="panel order-form"><h3>Record a shipment milestone</h3><div class="execution-fields">
+        <label>Shipment<select name="shipment_id" id="ops-shipment-select" required></select></label>
+        <label>Milestone<select name="milestone"><option value="in_transit">In transit</option><option value="out_for_delivery">Out for delivery</option><option value="delayed">Delayed</option><option value="exception">Carrier exception</option><option value="delivered">Delivered (manually reported)</option></select></label>
+        <label>Location<input name="location" maxlength="120" placeholder="Hub or destination"></label>
+        <label>Explanation (required for exceptions)<input name="note" maxlength="250"></label>
+      </div><button class="button" type="submit">Record milestone</button></form>
+      {% endif %}
+      <div class="panel"><div class="panel-title"><h3>Shipped orders &amp; manifests</h3></div><div id="ops-tracking-table" class="table-wrap"></div></div>
+    </section>
+    {% endif %}
     <section class="section-view hidden" data-view="transfers">
       <div class="section-title"><div><h2>Warehouse transfers</h2><p>Move available stock between locations and keep a two-sided audit history.</p></div></div>
       {% if not is_demo %}<form id="transfer-form" class="panel order-form"><h3>Move stock</h3><div class="order-fields"><label>From warehouse<select name="source_warehouse_id" class="warehouse-select" required></select></label><label>To warehouse<select name="destination_warehouse_id" class="warehouse-select" required></select></label><label>Product<select name="sku" class="sku-select" required></select></label><label>Units<input type="number" name="quantity" min="1" required value="1"></label><label>Reference note<input name="note" maxlength="250" placeholder="Transfer to second location"></label></div><button class="button" type="submit">Transfer available stock</button><p class="small muted">If a request times out, submit the same details again. The transfer reference prevents duplicate stock movement.</p></form>{% endif %}
@@ -230,4 +287,5 @@
 </div>
 <meta name="csrf-token" content="{{ csrf }}">
 <script src="/static/app.js" defer></script>
+{% if not is_demo %}<script src="/static/advanced_ops.js" defer></script>{% endif %}
 {% endblock %}

@@ -37,6 +37,13 @@ from .warehouse_execution import (create_bin, list_bins, list_bin_stock, locatio
 from .inbound_service import (create_notice, arrive_notice, scan_receipt, close_notice,
     cancel_notice, list_notices, receipt_history, notice_events)
 
+from .exception_service import (open_case,list_cases,assign_case,acknowledge_case,
+    resolve_case,reopen_case,comment_case,case_history)
+
+from .shipment_tracking import (record_milestone,shipment_timeline,shipment_overview)
+
+from .operations_metrics import operational_metrics
+
 router = APIRouter(prefix="/api")
 
 
@@ -1026,3 +1033,148 @@ def inbound_receipts(notice_id: int, request: Request, session: Session = Depend
 @router.get('/inbound/notices/{notice_id}/events')
 def inbound_events(notice_id: int, request: Request, session: Session = Depends(get_db)):
     return notice_events(session, read_access(request, session, False), notice_id)
+
+class ExceptionCreateIn(BaseModel):
+    warehouse_id: int | None = Field(default=None,gt=0)
+    source_type: str = Field(default='manual',max_length=32)
+    source_id: int | None = Field(default=None,gt=0)
+    category: str = Field(default='manual',max_length=40)
+    severity: str = Field(default='medium',max_length=12)
+    title: str = Field(min_length=3,max_length=160)
+    detail: str = Field(default='',max_length=500)
+
+
+class ExceptionAssignIn(BaseModel):
+    user_id: int = Field(gt=0)
+
+
+class ExceptionNoteIn(BaseModel):
+    note: str = Field(min_length=1,max_length=500)
+
+@router.get('/exceptions')
+def exception_queue(request:Request,status:str|None=None,
+    warehouse_id:int|None=Query(default=None,gt=0),severity:str|None=None,
+    session:Session=Depends(get_db)):
+    return list_cases(session,read_access(request,session,False),status,warehouse_id,severity)
+
+
+@router.post('/exceptions',status_code=201)
+def exception_open(payload:ExceptionCreateIn,request:Request,
+    idempotency_key:str=Header(default=''),x_csrf_token:str=Header(default=''),
+    session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    case,replayed=open_case(session,actor.business_id,payload.warehouse_id,
+        payload.category,payload.severity,payload.source_type,payload.source_id,
+        payload.title,payload.detail,actor.id,idempotency_key)
+    session.commit()
+    return {'id':case.id,'status':case.status,'replayed':replayed}
+
+@router.post('/exceptions/{case_id}/assign')
+def exception_assign(case_id:int,payload:ExceptionAssignIn,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    case=assign_case(session,actor.business_id,case_id,actor.id,payload.user_id)
+    session.commit()
+    return {'id':case.id,'status':case.status,'assigned_user_id':case.assigned_user_id}
+
+
+@router.post('/exceptions/{case_id}/acknowledge')
+def exception_acknowledge(case_id:int,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    case=acknowledge_case(session,actor.business_id,case_id,actor.id,
+        actor.role in ('owner','manager'))
+    session.commit()
+    return {'id':case.id,'status':case.status}
+
+
+@router.post('/exceptions/{case_id}/resolve')
+def exception_resolve(case_id:int,payload:ExceptionNoteIn,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    case=resolve_case(session,actor.business_id,case_id,actor.id,payload.note)
+    session.commit()
+    return {'id':case.id,'status':case.status}
+
+
+@router.post('/exceptions/{case_id}/reopen')
+def exception_reopen(case_id:int,payload:ExceptionNoteIn,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    case=reopen_case(session,actor.business_id,case_id,actor.id,payload.note)
+    session.commit()
+    return {'id':case.id,'status':case.status}
+
+@router.get('/exceptions/{case_id}/events')
+def exception_events(case_id:int,request:Request,session:Session=Depends(get_db)):
+    return case_history(session,read_access(request,session,False),case_id)
+
+
+@router.post('/exceptions/{case_id}/notes')
+def exception_note(case_id:int,payload:ExceptionNoteIn,request:Request,
+    x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    case=comment_case(session,actor.business_id,case_id,actor.id,payload.note)
+    session.commit()
+    return {'id':case.id,'status':case.status}
+
+class ShipmentMilestoneIn(BaseModel):
+    milestone: str = Field(min_length=3,max_length=24)
+    location: str = Field(default='',max_length=120)
+    note: str = Field(default='',max_length=250)
+
+
+@router.get('/shipping/tracking')
+def tracking_overview(request:Request,session:Session=Depends(get_db)):
+    return shipment_overview(session,read_access(request,session,False))
+
+
+@router.get('/shipping/shipments/{shipment_id}/events')
+def tracking_history(shipment_id:int,request:Request,session:Session=Depends(get_db)):
+    return shipment_timeline(session,read_access(request,session,False),shipment_id)
+
+
+@router.post('/shipping/shipments/{shipment_id}/events',status_code=201)
+def tracking_add(shipment_id:int,payload:ShipmentMilestoneIn,request:Request,
+    idempotency_key:str=Header(default=''),x_csrf_token:str=Header(default=''),
+    session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    row,replayed=record_milestone(session,actor.business_id,shipment_id,
+        payload.milestone,payload.location,payload.note,actor.id,idempotency_key)
+    session.commit()
+    return {'id':row.id,'shipment_id':row.shipment_id,'milestone':row.milestone,
+            'replayed':replayed,'source':'manual_operator_entry'}
+
+@router.get('/operations/metrics')
+def operations_metrics_api(request:Request,
+    warehouse_id:int|None=Query(default=None,gt=0),session:Session=Depends(get_db)):
+    bid=read_access(request,session,False)
+    return operational_metrics(session,bid,warehouse_id)
+
+@router.get('/outbound/orders/{order_id}/manifest.csv')
+def outbound_carton_manifest(order_id:int,request:Request,session:Session=Depends(get_db)):
+    from .models import OutboundCarton,OutboundCartonItem
+    bid=read_access(request,session,False)
+    order=_order(session,bid,order_id)
+    cartons=session.scalars(select(OutboundCarton).where(
+        OutboundCarton.business_id==bid,OutboundCarton.order_id==order.id)).all()
+    if not cartons or any(c.status not in ('sealed','shipped') for c in cartons):
+        raise DomainError('Manifest requires all cartons sealed or shipped',409)
+    stream=io.StringIO()
+    writer=csv.writer(stream)
+    writer.writerow(['order_id','warehouse_id','carton_code','pick_id','sku','quantity','carton_status'])
+    for carton in cartons:
+        rows=session.execute(select(OutboundCartonItem,Product.sku).join(
+            OutboundPick,OutboundPick.id==OutboundCartonItem.pick_id).join(
+            Product,Product.id==OutboundPick.product_id).where(
+            OutboundCartonItem.business_id==bid,OutboundCartonItem.carton_id==carton.id,
+            OutboundPick.business_id==bid,Product.business_id==bid)).all()
+        for item,sku in rows:
+            writer.writerow([order.id,order.warehouse_id,csv_cell(carton.code),item.pick_id,
+                csv_cell(sku),item.quantity,csv_cell(carton.status)])
+    return Response(stream.getvalue(),media_type='text/csv; charset=utf-8',
+        headers={'Content-Disposition':f'attachment; filename="elveriq-manifest-{order.id}.csv"'})
