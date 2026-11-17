@@ -13,11 +13,17 @@ def operational_metrics(session:Session,bid:int,warehouse_id:int|None=None):
         if condition is not None:q=q.where(condition)
         return session.scalar(q) or 0
     open_cases=metric(WarehouseException,WarehouseException.status!='resolved')
+    unassigned_cases=metric(WarehouseException,
+        (WarehouseException.status!='resolved') & (WarehouseException.assigned_user_id.is_(None)))
+    critical_cases=metric(WarehouseException,
+        (WarehouseException.status!='resolved') & (WarehouseException.severity=='critical'))
     overdue_query=select(func.count(WarehouseException.id)).where(
         WarehouseException.business_id==bid,WarehouseException.status!='resolved',
         WarehouseException.due_at<utcnow())
     if warehouse_id is not None:overdue_query=overdue_query.where(WarehouseException.warehouse_id==warehouse_id)
     return {'warehouse_id':warehouse_id,'open_exceptions':open_cases,
+        'unassigned_open_exceptions':unassigned_cases,
+        'critical_open_exceptions':critical_cases,
         'overdue_exceptions':session.scalar(overdue_query) or 0,
         'arrived_asns':metric(InboundNotice,InboundNotice.status=='arrived'),
         'queued_picks':metric(OutboundPick,OutboundPick.status=='queued'),

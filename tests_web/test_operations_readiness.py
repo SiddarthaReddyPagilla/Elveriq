@@ -35,6 +35,9 @@ def test_case_lifecycle_with_sla_assign_ack_comment_resolve_reopen(client):
     result=case_open(client,h,w)
     assert result.status_code==201,result.text
     cid=result.json()['id']
+    metrics=client.get('/api/operations/metrics').json()
+    assert metrics['unassigned_open_exceptions']==1
+    assert metrics['critical_open_exceptions']==0
     assert case_open(client,h,w).json()['replayed'] is True
     assert case_open(client,h,w,key='manual-case-0001',title='Changed').status_code==409
     assert case_open(client,h,w,key='bad').status_code==400
@@ -42,6 +45,7 @@ def test_case_lifecycle_with_sla_assign_ack_comment_resolve_reopen(client):
         uid=s.scalar(select(User.id).where(User.email=='owner@example.com',User.role=='owner'))
     result=client.post(f'/api/exceptions/{cid}/assign',headers=h,json={'user_id':uid})
     assert result.status_code==200,result.text
+    assert client.get('/api/operations/metrics').json()['unassigned_open_exceptions']==0
     assert client.post(f'/api/exceptions/{cid}/acknowledge',headers=h).json()['status']=='acknowledged'
     assert client.post(f'/api/exceptions/{cid}/notes',headers=h,json={'note':'Supplier notified'}).status_code==200
     assert client.post(f'/api/exceptions/{cid}/resolve',headers=h,json={'note':'no'}).status_code==400
