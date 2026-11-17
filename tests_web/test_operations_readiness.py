@@ -1,7 +1,7 @@
 """Critical case queue and manual shipment milestones with cross-tenant boundaries."""
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from dispatchforge_app.database import Database
 from dispatchforge_app.settings import Settings
 from dispatchforge_app.web import create_app
@@ -122,6 +122,17 @@ def test_manual_shipping_events_do_not_change_ledger_and_manifest_is_verified(cl
     assert client.get('/api/shipping/tracking?warehouse_id=999999').json()==[]
     assert client.get('/api/shipping/tracking?warehouse_id=-1').status_code==422
     assert client.get('/api/shipping/tracking').json()[0]['verified_by_carrier'] is False
+    # Listing must fetch the latest milestones with one bounded query, not N+1.
+    event_queries=[]
+    def observe(_conn, _cursor, statement, _params, _ctx, _many):
+        if statement.lstrip().lower().startswith('select') and 'shipment_tracking_updates' in statement:
+            event_queries.append(statement)
+    event.listen(client.test_db.engine,'before_cursor_execute',observe)
+    try:
+        assert client.get('/api/shipping/tracking').status_code==200
+    finally:
+        event.remove(client.test_db.engine,'before_cursor_execute',observe)
+    assert len(event_queries)==1
     assert [x['milestone'] for x in client.get(url).json()]==['in_transit','delivered']
     assert client.get('/api/inventory').json()[0]['on_hand']==base_inv
     assert client.get('/api/operations/metrics').json()['shipped_orders']==1
