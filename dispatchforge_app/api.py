@@ -1128,8 +1128,9 @@ class ShipmentMilestoneIn(BaseModel):
 
 
 @router.get('/shipping/tracking')
-def tracking_overview(request:Request,session:Session=Depends(get_db)):
-    return shipment_overview(session,read_access(request,session,False))
+def tracking_overview(request:Request,
+    warehouse_id:int|None=Query(default=None,gt=0),session:Session=Depends(get_db)):
+    return shipment_overview(session,read_access(request,session,False),warehouse_id)
 
 
 @router.get('/shipping/shipments/{shipment_id}/events')

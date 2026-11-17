@@ -118,6 +118,9 @@ def test_manual_shipping_events_do_not_change_ledger_and_manifest_is_verified(cl
     assert client.post(url,headers={**h,'Idempotency-Key':'carrier-milestone-004'},
         json={'milestone':'in_transit'}).status_code==409
     assert client.get('/api/shipping/tracking').json()[0]['milestone']=='delivered'
+    assert [row['shipment_id'] for row in client.get(f'/api/shipping/tracking?warehouse_id={w}').json()]==[ship_id]
+    assert client.get('/api/shipping/tracking?warehouse_id=999999').json()==[]
+    assert client.get('/api/shipping/tracking?warehouse_id=-1').status_code==422
     assert client.get('/api/shipping/tracking').json()[0]['verified_by_carrier'] is False
     assert [x['milestone'] for x in client.get(url).json()]==['in_transit','delivered']
     assert client.get('/api/inventory').json()[0]['on_hand']==base_inv

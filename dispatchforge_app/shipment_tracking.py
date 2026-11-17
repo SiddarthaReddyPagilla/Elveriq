@@ -68,9 +68,12 @@ def shipment_timeline(session:Session,bid:int,shipment_id:int):
         'source':'manual_operator_entry'} for e in records]
 
 
-def shipment_overview(session:Session,bid:int):
-    rows=session.scalars(select(OutboundShipment).where(OutboundShipment.business_id==bid)
-        .order_by(OutboundShipment.id.desc()).limit(200)).all()
+def shipment_overview(session:Session,bid:int,warehouse_id:int|None=None):
+    """List at most 200 tenant-owned shipments, optionally by warehouse."""
+    query=select(OutboundShipment).where(OutboundShipment.business_id==bid)
+    if warehouse_id is not None:
+        query=query.where(OutboundShipment.warehouse_id==warehouse_id)
+    rows=session.scalars(query.order_by(OutboundShipment.id.desc()).limit(200)).all()
     # Load milestones in one query instead of an additional query per shipment.
     # The listing is capped at 200 shipments, so the IN predicate is bounded.
     shipment_ids=[ship.id for ship in rows]
