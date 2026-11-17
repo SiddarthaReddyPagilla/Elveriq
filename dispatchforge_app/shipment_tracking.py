@@ -71,12 +71,20 @@ def shipment_timeline(session:Session,bid:int,shipment_id:int):
 def shipment_overview(session:Session,bid:int):
     rows=session.scalars(select(OutboundShipment).where(OutboundShipment.business_id==bid)
         .order_by(OutboundShipment.id.desc()).limit(200)).all()
+    # Load milestones in one query instead of an additional query per shipment.
+    # The listing is capped at 200 shipments, so the IN predicate is bounded.
+    shipment_ids=[ship.id for ship in rows]
+    latest_by_shipment={}
+    if shipment_ids:
+        events=session.scalars(select(ShipmentTrackingUpdate).where(
+            ShipmentTrackingUpdate.business_id==bid,
+            ShipmentTrackingUpdate.shipment_id.in_(shipment_ids))
+            .order_by(ShipmentTrackingUpdate.shipment_id, ShipmentTrackingUpdate.id.desc())).all()
+        for event in events:
+            latest_by_shipment.setdefault(event.shipment_id,event)
     result=[]
     for ship in rows:
-        latest=session.scalar(select(ShipmentTrackingUpdate).where(
-            ShipmentTrackingUpdate.business_id==bid,
-            ShipmentTrackingUpdate.shipment_id==ship.id)
-            .order_by(ShipmentTrackingUpdate.id.desc()).limit(1))
+        latest=latest_by_shipment.get(ship.id)
         result.append({'shipment_id':ship.id,'order_id':ship.order_id,'carrier':ship.carrier,
             'tracking_reference':ship.tracking_reference,
             'milestone':latest.milestone if latest else 'dispatched',
