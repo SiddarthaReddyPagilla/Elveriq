@@ -58,11 +58,18 @@ def record_milestone(session:Session,bid:int,shipment_id:int,milestone:str,
     session.flush()
     return session.get(ShipmentTrackingUpdate,inserted),False
 
-def shipment_timeline(session:Session,bid:int,shipment_id:int):
+def shipment_timeline(session:Session,bid:int,shipment_id:int,
+    after_id:int|None=None,limit:int=200):
+    """Fetch a bounded, forward-only milestone page for a tenant-owned shipment."""
     _shipment(session,bid,shipment_id)
-    records=session.scalars(select(ShipmentTrackingUpdate).where(
+    if not 1<=limit<=200 or (after_id is not None and after_id<0):
+        raise DomainError('Invalid timeline page size or cursor',400)
+    query=select(ShipmentTrackingUpdate).where(
         ShipmentTrackingUpdate.business_id==bid,
-        ShipmentTrackingUpdate.shipment_id==shipment_id).order_by(ShipmentTrackingUpdate.id)).all()
+        ShipmentTrackingUpdate.shipment_id==shipment_id)
+    if after_id is not None:
+        query=query.where(ShipmentTrackingUpdate.id>after_id)
+    records=session.scalars(query.order_by(ShipmentTrackingUpdate.id).limit(limit)).all()
     return [{'id':e.id,'milestone':e.milestone,'location':e.location,
         'note':e.note,'recorded_by':e.recorded_by,'created_at':e.created_at.isoformat(),
         'source':'manual_operator_entry'} for e in records]

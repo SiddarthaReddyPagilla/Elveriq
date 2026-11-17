@@ -134,6 +134,11 @@ def test_manual_shipping_events_do_not_change_ledger_and_manifest_is_verified(cl
         event.remove(client.test_db.engine,'before_cursor_execute',observe)
     assert len(event_queries)==1
     assert [x['milestone'] for x in client.get(url).json()]==['in_transit','delivered']
+    first_page=client.get(f'{url}?limit=1').json()
+    assert [x['milestone'] for x in first_page]==['in_transit']
+    assert [x['milestone'] for x in client.get(f"{url}?after_id={first_page[0]['id']}&limit=1").json()]==['delivered']
+    assert client.get(f'{url}?limit=201').status_code==422
+    assert client.get(f'{url}?after_id=-1').status_code==422
     assert client.get('/api/inventory').json()[0]['on_hand']==base_inv
     assert client.get('/api/operations/metrics').json()['shipped_orders']==1
     with client.test_db.SessionLocal() as s:
