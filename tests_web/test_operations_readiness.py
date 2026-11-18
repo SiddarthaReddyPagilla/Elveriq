@@ -1,7 +1,7 @@
 """Critical case queue and manual shipment milestones with cross-tenant boundaries."""
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from dispatchforge_app.database import Database
 from dispatchforge_app.settings import Settings
 from dispatchforge_app.web import create_app
@@ -35,6 +35,9 @@ def test_case_lifecycle_with_sla_assign_ack_comment_resolve_reopen(client):
     result=case_open(client,h,w)
     assert result.status_code==201,result.text
     cid=result.json()['id']
+    metrics=client.get('/api/operations/metrics').json()
+    assert metrics['unassigned_open_exceptions']==1
+    assert metrics['critical_open_exceptions']==0
     assert case_open(client,h,w).json()['replayed'] is True
     assert case_open(client,h,w,key='manual-case-0001',title='Changed').status_code==409
     assert case_open(client,h,w,key='bad').status_code==400
@@ -42,6 +45,7 @@ def test_case_lifecycle_with_sla_assign_ack_comment_resolve_reopen(client):
         uid=s.scalar(select(User.id).where(User.email=='owner@example.com',User.role=='owner'))
     result=client.post(f'/api/exceptions/{cid}/assign',headers=h,json={'user_id':uid})
     assert result.status_code==200,result.text
+    assert client.get('/api/operations/metrics').json()['unassigned_open_exceptions']==0
     assert client.post(f'/api/exceptions/{cid}/acknowledge',headers=h).json()['status']=='acknowledged'
     assert client.post(f'/api/exceptions/{cid}/notes',headers=h,json={'note':'Supplier notified'}).status_code==200
     assert client.post(f'/api/exceptions/{cid}/resolve',headers=h,json={'note':'no'}).status_code==400
@@ -118,8 +122,27 @@ def test_manual_shipping_events_do_not_change_ledger_and_manifest_is_verified(cl
     assert client.post(url,headers={**h,'Idempotency-Key':'carrier-milestone-004'},
         json={'milestone':'in_transit'}).status_code==409
     assert client.get('/api/shipping/tracking').json()[0]['milestone']=='delivered'
+    assert [row['shipment_id'] for row in client.get(f'/api/shipping/tracking?warehouse_id={w}').json()]==[ship_id]
+    assert client.get('/api/shipping/tracking?warehouse_id=999999').json()==[]
+    assert client.get('/api/shipping/tracking?warehouse_id=-1').status_code==422
     assert client.get('/api/shipping/tracking').json()[0]['verified_by_carrier'] is False
+    # Listing must fetch the latest milestones with one bounded query, not N+1.
+    event_queries=[]
+    def observe(_conn, _cursor, statement, _params, _ctx, _many):
+        if statement.lstrip().lower().startswith('select') and 'shipment_tracking_updates' in statement:
+            event_queries.append(statement)
+    event.listen(client.test_db.engine,'before_cursor_execute',observe)
+    try:
+        assert client.get('/api/shipping/tracking').status_code==200
+    finally:
+        event.remove(client.test_db.engine,'before_cursor_execute',observe)
+    assert len(event_queries)==1
     assert [x['milestone'] for x in client.get(url).json()]==['in_transit','delivered']
+    first_page=client.get(f'{url}?limit=1').json()
+    assert [x['milestone'] for x in first_page]==['in_transit']
+    assert [x['milestone'] for x in client.get(f"{url}?after_id={first_page[0]['id']}&limit=1").json()]==['delivered']
+    assert client.get(f'{url}?limit=201').status_code==422
+    assert client.get(f'{url}?after_id=-1').status_code==422
     assert client.get('/api/inventory').json()[0]['on_hand']==base_inv
     assert client.get('/api/operations/metrics').json()['shipped_orders']==1
     with client.test_db.SessionLocal() as s:

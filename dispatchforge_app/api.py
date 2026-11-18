@@ -1128,13 +1128,16 @@ class ShipmentMilestoneIn(BaseModel):
 
 
 @router.get('/shipping/tracking')
-def tracking_overview(request:Request,session:Session=Depends(get_db)):
-    return shipment_overview(session,read_access(request,session,False))
+def tracking_overview(request:Request,
+    warehouse_id:int|None=Query(default=None,gt=0),session:Session=Depends(get_db)):
+    return shipment_overview(session,read_access(request,session,False),warehouse_id)
 
 
 @router.get('/shipping/shipments/{shipment_id}/events')
-def tracking_history(shipment_id:int,request:Request,session:Session=Depends(get_db)):
-    return shipment_timeline(session,read_access(request,session,False),shipment_id)
+def tracking_history(shipment_id:int,request:Request,
+    after_id:int|None=Query(default=None,ge=0),
+    limit:int=Query(default=200,ge=1,le=200),session:Session=Depends(get_db)):
+    return shipment_timeline(session,read_access(request,session,False),shipment_id,after_id,limit)
 
 
 @router.post('/shipping/shipments/{shipment_id}/events',status_code=201)

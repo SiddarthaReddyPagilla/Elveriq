@@ -58,25 +58,43 @@ def record_milestone(session:Session,bid:int,shipment_id:int,milestone:str,
     session.flush()
     return session.get(ShipmentTrackingUpdate,inserted),False
 
-def shipment_timeline(session:Session,bid:int,shipment_id:int):
+def shipment_timeline(session:Session,bid:int,shipment_id:int,
+    after_id:int|None=None,limit:int=200):
+    """Fetch a bounded, forward-only milestone page for a tenant-owned shipment."""
     _shipment(session,bid,shipment_id)
-    records=session.scalars(select(ShipmentTrackingUpdate).where(
+    if not 1<=limit<=200 or (after_id is not None and after_id<0):
+        raise DomainError('Invalid timeline page size or cursor',400)
+    query=select(ShipmentTrackingUpdate).where(
         ShipmentTrackingUpdate.business_id==bid,
-        ShipmentTrackingUpdate.shipment_id==shipment_id).order_by(ShipmentTrackingUpdate.id)).all()
+        ShipmentTrackingUpdate.shipment_id==shipment_id)
+    if after_id is not None:
+        query=query.where(ShipmentTrackingUpdate.id>after_id)
+    records=session.scalars(query.order_by(ShipmentTrackingUpdate.id).limit(limit)).all()
     return [{'id':e.id,'milestone':e.milestone,'location':e.location,
         'note':e.note,'recorded_by':e.recorded_by,'created_at':e.created_at.isoformat(),
         'source':'manual_operator_entry'} for e in records]
 
 
-def shipment_overview(session:Session,bid:int):
-    rows=session.scalars(select(OutboundShipment).where(OutboundShipment.business_id==bid)
-        .order_by(OutboundShipment.id.desc()).limit(200)).all()
+def shipment_overview(session:Session,bid:int,warehouse_id:int|None=None):
+    """List at most 200 tenant-owned shipments, optionally by warehouse."""
+    query=select(OutboundShipment).where(OutboundShipment.business_id==bid)
+    if warehouse_id is not None:
+        query=query.where(OutboundShipment.warehouse_id==warehouse_id)
+    rows=session.scalars(query.order_by(OutboundShipment.id.desc()).limit(200)).all()
+    # Load milestones in one query instead of an additional query per shipment.
+    # The listing is capped at 200 shipments, so the IN predicate is bounded.
+    shipment_ids=[ship.id for ship in rows]
+    latest_by_shipment={}
+    if shipment_ids:
+        events=session.scalars(select(ShipmentTrackingUpdate).where(
+            ShipmentTrackingUpdate.business_id==bid,
+            ShipmentTrackingUpdate.shipment_id.in_(shipment_ids))
+            .order_by(ShipmentTrackingUpdate.shipment_id, ShipmentTrackingUpdate.id.desc())).all()
+        for event in events:
+            latest_by_shipment.setdefault(event.shipment_id,event)
     result=[]
     for ship in rows:
-        latest=session.scalar(select(ShipmentTrackingUpdate).where(
-            ShipmentTrackingUpdate.business_id==bid,
-            ShipmentTrackingUpdate.shipment_id==ship.id)
-            .order_by(ShipmentTrackingUpdate.id.desc()).limit(1))
+        latest=latest_by_shipment.get(ship.id)
         result.append({'shipment_id':ship.id,'order_id':ship.order_id,'carrier':ship.carrier,
             'tracking_reference':ship.tracking_reference,
             'milestone':latest.milestone if latest else 'dispatched',
