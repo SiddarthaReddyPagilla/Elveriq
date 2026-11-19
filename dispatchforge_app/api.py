@@ -1189,3 +1189,9 @@ def report_inventory_health(request: Request, warehouse_id: int | None = Query(d
         session: Session = Depends(get_db)):
     bid = read_access(request, session, False)
     return warehouse_reports.inventory_health(session, bid, warehouse_id)
+
+@router.get('/reports/bin-capacity')
+def report_bin_capacity(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.bin_capacity(session, bid, warehouse_id)
