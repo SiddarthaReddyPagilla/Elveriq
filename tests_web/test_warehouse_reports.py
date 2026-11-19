@@ -14,3 +14,10 @@ def test_inventory_health_authenticated_and_empty(client):
     assert row['source']=='live_database_snapshot'
     assert row['on_hand_units']==row['reserved_units']==row['available_units']==0
     assert get(client,'inventory-health',999999).status_code==404
+
+def test_bin_capacity_empty_and_tenant_scope(client):
+    register(client)
+    row=get(client,'bin-capacity').json()
+    assert row['placed_units']==0 and row['bins']==0
+    assert row['over_capacity_bins']==0
+    assert get(client,'bin-capacity',999999).status_code==404
