@@ -13,6 +13,7 @@
       {% if not is_demo %}<button class="side-link" data-section="inbound">♧ &nbsp; Inbound dock &amp; ASN</button>{% endif %}
       {% if not is_demo %}<button class="side-link" data-section="exceptions">⚑ &nbsp; Operations exceptions</button>{% endif %}
       {% if not is_demo %}<button class="side-link" data-section="shipping">⇥ &nbsp; Shipment tracking</button>{% endif %}
+      {% if not is_demo %}<button class="side-link" data-section="reports">▥ &nbsp; Warehouse intelligence</button>{% endif %}
       <button class="side-link" data-section="orders">◷ &nbsp; Scheduled orders</button>
       <button class="side-link" data-section="purchasing">♧ &nbsp; Purchasing &amp; receiving</button>
       <button class="side-link" data-section="transfers">↔ &nbsp; Transfers</button>
@@ -228,6 +229,17 @@
       <div class="panel"><div class="panel-title"><h3>Case ownership &amp; resolution</h3></div><div id="ops-exceptions-table" class="table-wrap"></div></div>
       <p id="ops-notice" class="small" aria-live="polite"></p>
     </section>
+<section class="section-view hidden" data-view="reports" id="ops-reports">
+  <div class="panel">
+    <div class="panel-title"><h3>Warehouse intelligence</h3></div>
+    <p>Live operational snapshots from the warehouse ledger. Carrier milestones are entered manually and are not independently verified.</p>
+    <label for="ops-report-warehouse">Warehouse</label>
+    <select id="ops-report-warehouse"><option value="">All warehouses</option></select>
+    <button type="button" class="button button-secondary" id="ops-report-refresh">Refresh reports</button>
+    <div id="ops-report-notice" role="status" aria-live="polite"></div>
+    <div id="ops-report-tiles" class="table-wrap"></div>
+  </div>
+</section>
     <section class="section-view hidden" data-view="shipping" id="ops-shipping">
       <div class="section-title"><div><h2>Post-dispatch shipment tracking</h2><p>View manually recorded carrier milestones and download verified carton manifests. These milestones are operator-entered, not carrier-confirmed.</p></div></div>
       {% if role in ['owner','manager'] %}

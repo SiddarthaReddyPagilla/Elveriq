@@ -164,5 +164,50 @@
   });
   document.querySelectorAll('[data-section="inbound"],[data-section="exceptions"],[data-section="shipping"]').forEach(button=>
     button.addEventListener('click',load));
+  const reportTypes = [
+    ['inventory-health', 'Inventory health'], ['bin-capacity', 'Storage bin capacity'],
+    ['receiving-quality', 'Inbound receiving quality'], ['purchase-backlog', 'Purchase backlog'],
+    ['picking-pipeline', 'Picking execution'], ['packing-pipeline', 'Packing execution'],
+    ['dispatch-activity', 'Dispatch volume'], ['delivery-visibility', 'Manual delivery visibility'],
+    ['incident-risk', 'Incident exposure'], ['workforce-load', 'Workforce queue']
+  ];
+  async function refreshReports() {
+    const target=el('ops-report-tiles'), status=el('ops-report-notice');
+    if (!target) return;
+    if (status) status.textContent='Reading live warehouse records…';
+    const wid=el('ops-report-warehouse')?.value;
+    const suffix=wid ? `?warehouse_id=${encodeURIComponent(wid)}` : '';
+    try {
+      const data=await Promise.all(reportTypes.map(([name])=>api(`/reports/${name}${suffix}`)));
+      const rows=[];
+      for (let i=0; i<data.length; i++) {
+        const [name,label]=reportTypes[i];
+        for (const [key,value] of Object.entries(data[i])) {
+          if (key==='source' || key==='warehouse_id') continue;
+          const shown=value!==null && typeof value==='object' ? JSON.stringify(value) : String(value);
+          rows.push(`<tr><td>${safe(label)}</td><td>${safe(key.replaceAll('_',' '))}</td><td>${safe(shown)}</td></tr>`);
+        }
+      }
+      table('ops-report-tiles',['Operational area','Metric','Live value'],rows);
+      if (status) status.textContent=`${data.length} reports refreshed. Shipment events are manual entries, not carrier-verified.`;
+    } catch(error) {
+      if (status) status.textContent=error.message;
+    }
+  }
+  document.querySelector('[data-section="reports"]')?.addEventListener('click', async()=>{
+    const choices=el('ops-report-warehouse');
+    try {
+      const available=await api('/warehouses');
+      if (choices) {
+        const previous=choices.value;
+        choices.innerHTML='<option value="">All warehouses</option>'+available.map(w=>
+          `<option value="${Number(w.id)}">${safe(w.name)}</option>`).join('');
+        if ([...choices.options].some(option=>option.value===previous)) choices.value=previous;
+      }
+      await refreshReports();
+    } catch(error) {if (el('ops-report-notice')) el('ops-report-notice').textContent=error.message;}
+  });
+  el('ops-report-refresh')?.addEventListener('click',refreshReports);
+  el('ops-report-warehouse')?.addEventListener('change',refreshReports);
   load();
 })();
