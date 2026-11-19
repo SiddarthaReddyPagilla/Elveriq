@@ -83,3 +83,17 @@ def receiving_quality(session, bid, wid=None):
         InboundNotice.status == 'closed'), 'expected_units': int(expected),
         'accepted_units': int(accepted), 'damaged_units': int(damaged),
         'unaccounted_units': max(0, int(expected) - int(accepted) - int(damaged))}
+
+def purchase_backlog(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    q = (select(func.coalesce(func.sum(PurchaseOrderLine.ordered_quantity), 0),
+        func.coalesce(func.sum(PurchaseOrderLine.received_quantity), 0))
+        .join(PurchaseOrder, PurchaseOrder.id == PurchaseOrderLine.purchase_order_id)
+        .where(PurchaseOrder.business_id == bid, PurchaseOrderLine.business_id == bid,
+            PurchaseOrder.status != 'canceled'))
+    if wid is not None: q = q.where(PurchaseOrder.warehouse_id == wid)
+    ordered, received = session.execute(q).one()
+    return {**base, 'open_purchase_orders': _count(session, PurchaseOrder, bid, wid,
+        PurchaseOrder.status.in_(('ordered', 'partial'))),
+        'ordered_units': int(ordered), 'received_units': int(received),
+        'outstanding_units': max(0, int(ordered) - int(received))}
