@@ -45,3 +45,23 @@ def inventory_health(session, bid, wid=None):
         'reserved_units': reserved, 'available_units': on_hand - reserved,
         'below_reorder_point': sum(r[0] < r[2] for r in rows),
         'fully_reserved_locations': sum(r[0] > 0 and r[1] == r[0] for r in rows)}
+
+def bin_capacity(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    bins = session.execute(_where(select(WarehouseBin.id, WarehouseBin.capacity_units,
+        WarehouseBin.active), WarehouseBin, bid, wid)).all()
+    stock = session.execute(_where(select(BinStock.bin_id, BinStock.on_hand,
+        BinStock.allocated), BinStock, bid, wid)).all()
+    occupancy = {}
+    for bin_id, units, allocated in stock:
+        stored, reserved = occupancy.get(bin_id, (0, 0))
+        occupancy[bin_id] = (stored + units, reserved + allocated)
+    capacity = sum(c for _, c, active in bins if active and c is not None)
+    stored = sum(units for _, units, _ in stock)
+    return {**base, 'bins': len(bins), 'active_bins': sum(bool(b[2]) for b in bins),
+        'capacity_defined_bins': sum(b[1] is not None for b in bins),
+        'configured_active_capacity': capacity, 'placed_units': stored,
+        'allocated_placed_units': sum(a for _, _, a in stock),
+        'occupied_bins': sum(occupancy.get(b[0], (0, 0))[0] > 0 for b in bins),
+        'over_capacity_bins': sum(bool(active and cap is not None and
+            occupancy.get(bin_id, (0, 0))[0] > cap) for bin_id, cap, active in bins)}
