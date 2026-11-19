@@ -48,3 +48,9 @@ def test_picking_pipeline_has_bounded_statuses(client):
     assert data['open_picks']==0 and data['staged_units']==0
     assert set(data['by_status'])=={'queued','assigned','in_progress','picked','packed','shipped','canceled'}
     assert get(client,'picking-pipeline',999999).status_code==404
+
+def test_packing_pipeline_zero_cartons(client):
+    register(client)
+    data=get(client,'packing-pipeline').json()
+    assert data['packed_units']==0 and data['awaiting_seal']==0
+    assert data['by_status']=={'open':0,'sealed':0,'shipped':0}
