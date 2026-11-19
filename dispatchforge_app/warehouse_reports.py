@@ -65,3 +65,21 @@ def bin_capacity(session, bid, wid=None):
         'occupied_bins': sum(occupancy.get(b[0], (0, 0))[0] > 0 for b in bins),
         'over_capacity_bins': sum(bool(active and cap is not None and
             occupancy.get(bin_id, (0, 0))[0] > cap) for bin_id, cap, active in bins)}
+
+def receiving_quality(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    q = (select(func.coalesce(func.sum(InboundNoticeLine.expected), 0),
+        func.coalesce(func.sum(InboundNoticeLine.accepted), 0),
+        func.coalesce(func.sum(InboundNoticeLine.damaged), 0))
+        .join(InboundNotice, InboundNotice.id == InboundNoticeLine.notice_id)
+        .where(InboundNotice.business_id == bid, InboundNoticeLine.business_id == bid,
+            InboundNotice.status != 'canceled'))
+    if wid is not None: q = q.where(InboundNotice.warehouse_id == wid)
+    expected, accepted, damaged = session.execute(q).one()
+    return {**base, 'planned_notices': _count(session, InboundNotice, bid, wid,
+        InboundNotice.status == 'planned'), 'arrived_notices': _count(session,
+        InboundNotice, bid, wid, InboundNotice.status == 'arrived'),
+        'closed_notices': _count(session, InboundNotice, bid, wid,
+        InboundNotice.status == 'closed'), 'expected_units': int(expected),
+        'accepted_units': int(accepted), 'damaged_units': int(damaged),
+        'unaccounted_units': max(0, int(expected) - int(accepted) - int(damaged))}
