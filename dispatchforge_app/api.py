@@ -1181,3 +1181,11 @@ def outbound_carton_manifest(order_id:int,request:Request,session:Session=Depend
                 csv_cell(sku),item.quantity,csv_cell(carton.status)])
     return Response(stream.getvalue(),media_type='text/csv; charset=utf-8',
         headers={'Content-Disposition':f'attachment; filename="elveriq-manifest-{order.id}.csv"'})
+
+from . import warehouse_reports
+
+@router.get('/reports/inventory-health')
+def report_inventory_health(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.inventory_health(session, bid, warehouse_id)
