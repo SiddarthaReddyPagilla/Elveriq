@@ -159,3 +159,17 @@ def delivery_visibility(session, bid, wid=None):
         'no_milestone_recorded': total - manual,
         'latest_manual_milestones': {state: int(n) for state, n in counts},
         'carrier_verified': False}
+
+def incident_risk(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    active = WarehouseException.status != 'resolved'
+    q = _where(select(WarehouseException.severity, func.count(WarehouseException.id))
+        .where(active).group_by(WarehouseException.severity), WarehouseException, bid, wid)
+    severities = {name: 0 for name in ('low', 'medium', 'high', 'critical')}
+    severities.update({name: int(n) for name, n in session.execute(q)})
+    return {**base, 'active_by_severity': severities,
+        'open_total': sum(severities.values()),
+        'unassigned_open': _count(session, WarehouseException, bid, wid, active,
+            WarehouseException.assigned_user_id.is_(None)),
+        'overdue_open': _count(session, WarehouseException, bid, wid, active,
+            WarehouseException.due_at < utcnow())}
