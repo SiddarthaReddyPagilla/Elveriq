@@ -1231,3 +1231,9 @@ def report_delivery_visibility(request: Request, warehouse_id: int | None = Quer
         session: Session = Depends(get_db)):
     bid = read_access(request, session, False)
     return warehouse_reports.delivery_visibility(session, bid, warehouse_id)
+
+@router.get('/reports/incident-risk')
+def report_incident_risk(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.incident_risk(session, bid, warehouse_id)
