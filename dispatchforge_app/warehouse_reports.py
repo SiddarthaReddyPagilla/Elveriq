@@ -110,3 +110,19 @@ def picking_pipeline(session, bid, wid=None):
     return {**base, 'by_status': results, 'staged_units': sum(results[s]['units']
         for s in ('picked', 'packed')), 'open_picks': sum(results[s]['picks']
         for s in ('queued', 'assigned', 'in_progress'))}
+
+def packing_pipeline(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    states = ('open', 'sealed', 'shipped')
+    q = _where(select(OutboundCarton.status, func.count(OutboundCarton.id))
+        .group_by(OutboundCarton.status), OutboundCarton, bid, wid)
+    counts = dict.fromkeys(states, 0)
+    counts.update({status: int(count) for status, count in session.execute(q) if status in counts})
+    item_q = (select(func.count(OutboundCartonItem.id),
+        func.coalesce(func.sum(OutboundCartonItem.quantity), 0))
+        .join(OutboundCarton, OutboundCarton.id == OutboundCartonItem.carton_id)
+        .where(OutboundCarton.business_id == bid, OutboundCartonItem.business_id == bid))
+    if wid is not None: item_q = item_q.where(OutboundCarton.warehouse_id == wid)
+    items, units = session.execute(item_q).one()
+    return {**base, 'by_status': counts, 'packed_lines': int(items),
+        'packed_units': int(units), 'awaiting_seal': counts['open']}
