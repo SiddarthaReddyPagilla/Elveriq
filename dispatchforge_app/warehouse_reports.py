@@ -138,3 +138,24 @@ def dispatch_activity(session, bid, wid=None):
             OutboundShipment.shipped_at >= now - timedelta(days=7)),
         'top_carriers': [{'carrier': name, 'shipments': int(count)}
             for name, count in session.execute(q)]}
+
+def delivery_visibility(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    q = _where(select(OutboundShipment.id), OutboundShipment, bid, wid)
+    ship_ids = q.subquery()
+    latest = (select(ShipmentTrackingUpdate.shipment_id.label('shipment_id'),
+        func.max(ShipmentTrackingUpdate.id).label('latest_id')).where(
+        ShipmentTrackingUpdate.business_id == bid,
+        ShipmentTrackingUpdate.shipment_id.in_(select(ship_ids.c.id)))
+        .group_by(ShipmentTrackingUpdate.shipment_id).subquery())
+    counts = session.execute(select(ShipmentTrackingUpdate.milestone,
+        func.count(ShipmentTrackingUpdate.id)).join(
+        latest, ShipmentTrackingUpdate.id == latest.c.latest_id)
+        .where(ShipmentTrackingUpdate.business_id == bid).group_by(
+        ShipmentTrackingUpdate.milestone)).all()
+    total = _count(session, OutboundShipment, bid, wid)
+    manual = sum(int(n) for _, n in counts)
+    return {**base, 'total_shipments': total,
+        'no_milestone_recorded': total - manual,
+        'latest_manual_milestones': {state: int(n) for state, n in counts},
+        'carrier_verified': False}
