@@ -1237,3 +1237,9 @@ def report_incident_risk(request: Request, warehouse_id: int | None = Query(defa
         session: Session = Depends(get_db)):
     bid = read_access(request, session, False)
     return warehouse_reports.incident_risk(session, bid, warehouse_id)
+
+@router.get('/reports/workforce-load')
+def report_workforce_load(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.workforce_load(session, bid, warehouse_id)
