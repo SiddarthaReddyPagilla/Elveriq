@@ -76,3 +76,11 @@ def test_incident_risk_tracks_active_case_without_cross_tenant_leak(client):
     assert get(client,'incident-risk').json()['active_by_severity']['high']==1
     register(client,'Second Reports Tenant','reports-tenant-two@example.com')
     assert get(client,'incident-risk').json()['open_total']==0
+
+def test_workforce_load_read_only_and_scoped(client):
+    register(client)
+    data=get(client,'workforce-load').json()
+    assert data['active_tasks']==0 and data['unassigned_tasks']==0
+    assert data['worker_load']==[]
+    assert data['worker_load_limit']==100
+    assert get(client,'workforce-load',999999).status_code==404
