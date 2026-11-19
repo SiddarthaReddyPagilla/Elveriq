@@ -33,3 +33,11 @@ def test_receiving_quality_matches_real_notice(client):
     data=get(client,'receiving-quality').json()
     assert data['accepted_units']==4 and data['damaged_units']==1
     assert data['expected_units'] >= 5
+
+def test_purchase_backlog_tracks_outstanding_orders(client):
+    from tests_web.test_inbound_notices import purchase
+    h,w,po,line=purchase(client)
+    data=get(client,'purchase-backlog').json()
+    assert data['open_purchase_orders']>=1
+    assert data['outstanding_units']>=1
+    assert data['ordered_units']>=data['received_units']
