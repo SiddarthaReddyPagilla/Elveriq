@@ -173,3 +173,18 @@ def incident_risk(session, bid, wid=None):
             WarehouseException.assigned_user_id.is_(None)),
         'overdue_open': _count(session, WarehouseException, bid, wid, active,
             WarehouseException.due_at < utcnow())}
+
+def workforce_load(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    active = WarehouseTask.status.in_(('queued', 'assigned', 'in_progress'))
+    q = _where(select(WarehouseTask.assigned_user_id, func.count(WarehouseTask.id),
+        func.coalesce(func.sum(WarehouseTask.quantity), 0)).where(active)
+        .group_by(WarehouseTask.assigned_user_id).order_by(
+        func.count(WarehouseTask.id).desc(), WarehouseTask.assigned_user_id)
+        .limit(100), WarehouseTask, bid, wid)
+    results = [{'user_id': user, 'tasks': int(count), 'units': int(units)}
+        for user, count, units in session.execute(q)]
+    return {**base, 'active_tasks': _count(session, WarehouseTask, bid, wid, active),
+        'unassigned_tasks': _count(session, WarehouseTask, bid, wid, active,
+            WarehouseTask.assigned_user_id.is_(None)),
+        'worker_load': results, 'worker_load_limit': 100}
