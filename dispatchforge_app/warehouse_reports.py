@@ -97,3 +97,16 @@ def purchase_backlog(session, bid, wid=None):
         PurchaseOrder.status.in_(('ordered', 'partial'))),
         'ordered_units': int(ordered), 'received_units': int(received),
         'outstanding_units': max(0, int(ordered) - int(received))}
+
+def picking_pipeline(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    states = ('queued', 'assigned', 'in_progress', 'picked', 'packed', 'shipped', 'canceled')
+    q = _where(select(OutboundPick.status, func.count(OutboundPick.id),
+        func.coalesce(func.sum(OutboundPick.quantity), 0)).group_by(
+        OutboundPick.status), OutboundPick, bid, wid)
+    results = {state: {'picks': 0, 'units': 0} for state in states}
+    for status, count, units in session.execute(q):
+        if status in results: results[status] = {'picks': int(count), 'units': int(units)}
+    return {**base, 'by_status': results, 'staged_units': sum(results[s]['units']
+        for s in ('picked', 'packed')), 'open_picks': sum(results[s]['picks']
+        for s in ('queued', 'assigned', 'in_progress'))}
