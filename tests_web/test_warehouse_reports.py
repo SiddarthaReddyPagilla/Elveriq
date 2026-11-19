@@ -21,3 +21,15 @@ def test_bin_capacity_empty_and_tenant_scope(client):
     assert row['placed_units']==0 and row['bins']==0
     assert row['over_capacity_bins']==0
     assert get(client,'bin-capacity',999999).status_code==404
+
+def test_receiving_quality_matches_real_notice(client):
+    from tests_web.test_inbound_notices import purchase, notice, scan
+    h,w,po,line=purchase(client)
+    nid=notice(client,h,po,line).json()['id']
+    assert get(client,'receiving-quality').json()['planned_notices']==1
+    assert client.post(f'/api/inbound/notices/{nid}/arrive',headers=h).status_code==200
+    lid=client.get('/api/inbound/notices').json()[0]['items'][0]['id']
+    assert scan(client,h,nid,lid,accepted=4,damaged=1,damage_note='Damaged on unloading').status_code==200
+    data=get(client,'receiving-quality').json()
+    assert data['accepted_units']==4 and data['damaged_units']==1
+    assert data['expected_units'] >= 5
