@@ -60,3 +60,10 @@ def test_dispatch_activity_no_invented_carrier_telemetry(client):
     data=get(client,'dispatch-activity').json()
     assert data['shipments']==0 and data['shipped_last_7_days']==0
     assert data['top_carriers']==[]
+
+def test_delivery_visibility_explicitly_not_carrier_verified(client):
+    register(client)
+    data=get(client,'delivery-visibility').json()
+    assert data['carrier_verified'] is False
+    assert data['total_shipments']==0
+    assert data['latest_manual_milestones']=={}
