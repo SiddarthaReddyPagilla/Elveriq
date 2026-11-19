@@ -126,3 +126,15 @@ def packing_pipeline(session, bid, wid=None):
     items, units = session.execute(item_q).one()
     return {**base, 'by_status': counts, 'packed_lines': int(items),
         'packed_units': int(units), 'awaiting_seal': counts['open']}
+
+def dispatch_activity(session, bid, wid=None):
+    base = _scope(session, bid, wid)
+    now = utcnow()
+    q = _where(select(OutboundShipment.carrier, func.count(OutboundShipment.id))
+        .group_by(OutboundShipment.carrier).order_by(func.count(OutboundShipment.id).desc(),
+        OutboundShipment.carrier).limit(20), OutboundShipment, bid, wid)
+    return {**base, 'shipments': _count(session, OutboundShipment, bid, wid),
+        'shipped_last_7_days': _count(session, OutboundShipment, bid, wid,
+            OutboundShipment.shipped_at >= now - timedelta(days=7)),
+        'top_carriers': [{'carrier': name, 'shipments': int(count)}
+            for name, count in session.execute(q)]}
