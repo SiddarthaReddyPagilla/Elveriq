@@ -54,3 +54,9 @@ def test_packing_pipeline_zero_cartons(client):
     data=get(client,'packing-pipeline').json()
     assert data['packed_units']==0 and data['awaiting_seal']==0
     assert data['by_status']=={'open':0,'sealed':0,'shipped':0}
+
+def test_dispatch_activity_no_invented_carrier_telemetry(client):
+    register(client)
+    data=get(client,'dispatch-activity').json()
+    assert data['shipments']==0 and data['shipped_last_7_days']==0
+    assert data['top_carriers']==[]
