@@ -1195,3 +1195,9 @@ def report_bin_capacity(request: Request, warehouse_id: int | None = Query(defau
         session: Session = Depends(get_db)):
     bid = read_access(request, session, False)
     return warehouse_reports.bin_capacity(session, bid, warehouse_id)
+
+@router.get('/reports/receiving-quality')
+def report_receiving_quality(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.receiving_quality(session, bid, warehouse_id)
