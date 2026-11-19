@@ -41,3 +41,10 @@ def test_purchase_backlog_tracks_outstanding_orders(client):
     assert data['open_purchase_orders']>=1
     assert data['outstanding_units']>=1
     assert data['ordered_units']>=data['received_units']
+
+def test_picking_pipeline_has_bounded_statuses(client):
+    register(client)
+    data=get(client,'picking-pipeline').json()
+    assert data['open_picks']==0 and data['staged_units']==0
+    assert set(data['by_status'])=={'queued','assigned','in_progress','picked','packed','shipped','canceled'}
+    assert get(client,'picking-pipeline',999999).status_code==404
