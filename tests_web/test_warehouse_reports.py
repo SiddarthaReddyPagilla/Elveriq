@@ -67,3 +67,12 @@ def test_delivery_visibility_explicitly_not_carrier_verified(client):
     assert data['carrier_verified'] is False
     assert data['total_shipments']==0
     assert data['latest_manual_milestones']=={}
+
+def test_incident_risk_tracks_active_case_without_cross_tenant_leak(client):
+    headers=register(client)
+    warehouse=client.get('/api/warehouses').json()[0]['id']
+    assert case_open(client,headers,warehouse).status_code==201
+    assert get(client,'incident-risk').json()['open_total']==1
+    assert get(client,'incident-risk').json()['active_by_severity']['high']==1
+    register(client,'Second Reports Tenant','reports-tenant-two@example.com')
+    assert get(client,'incident-risk').json()['open_total']==0
