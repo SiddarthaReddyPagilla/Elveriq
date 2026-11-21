@@ -1181,3 +1181,65 @@ def outbound_carton_manifest(order_id:int,request:Request,session:Session=Depend
                 csv_cell(sku),item.quantity,csv_cell(carton.status)])
     return Response(stream.getvalue(),media_type='text/csv; charset=utf-8',
         headers={'Content-Disposition':f'attachment; filename="elveriq-manifest-{order.id}.csv"'})
+
+from . import warehouse_reports
+
+@router.get('/reports/inventory-health')
+def report_inventory_health(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.inventory_health(session, bid, warehouse_id)
+
+@router.get('/reports/bin-capacity')
+def report_bin_capacity(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.bin_capacity(session, bid, warehouse_id)
+
+@router.get('/reports/receiving-quality')
+def report_receiving_quality(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.receiving_quality(session, bid, warehouse_id)
+
+@router.get('/reports/purchase-backlog')
+def report_purchase_backlog(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.purchase_backlog(session, bid, warehouse_id)
+
+@router.get('/reports/picking-pipeline')
+def report_picking_pipeline(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.picking_pipeline(session, bid, warehouse_id)
+
+@router.get('/reports/packing-pipeline')
+def report_packing_pipeline(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.packing_pipeline(session, bid, warehouse_id)
+
+@router.get('/reports/dispatch-activity')
+def report_dispatch_activity(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.dispatch_activity(session, bid, warehouse_id)
+
+@router.get('/reports/delivery-visibility')
+def report_delivery_visibility(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.delivery_visibility(session, bid, warehouse_id)
+
+@router.get('/reports/incident-risk')
+def report_incident_risk(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.incident_risk(session, bid, warehouse_id)
+
+@router.get('/reports/workforce-load')
+def report_workforce_load(request: Request, warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    bid = read_access(request, session, False)
+    return warehouse_reports.workforce_load(session, bid, warehouse_id)
