@@ -93,3 +93,13 @@ def check_placed_vs_accounting(session,bid,wid):
     return _finding(session,'placed_exceeds_ledger','critical',q,
         'The sum of placed bin units exceeds the warehouse accounting balance')
 RULES.append(check_placed_vs_accounting)
+
+def check_capacity(session,bid,wid):
+    b=WarehouseBin
+    tally=(select(BinStock.bin_id.label('bin_id'),func.sum(BinStock.on_hand).label('units'))
+           .where(BinStock.business_id==bid).group_by(BinStock.bin_id).subquery())
+    q=(select(b.id).join(tally,tally.c.bin_id==b.id).where(b.business_id==bid,
+        b.active.is_(True),b.capacity_units.is_not(None),tally.c.units>b.capacity_units))
+    return _finding(session,'bin_overcapacity','warning',_in_warehouse(q,b,wid),
+        'Stored units exceed the configured active bin unit capacity')
+RULES.append(check_capacity)
