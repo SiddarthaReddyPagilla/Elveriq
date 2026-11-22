@@ -230,6 +230,7 @@
       <p id="ops-notice" class="small" aria-live="polite"></p>
     </section>
 <section class="section-view hidden" data-view="reports" id="ops-reports">
+  <div class="panel" id="integrity-audit-panel"><div class="panel-title"><div><h3>Warehouse integrity preflight</h3><p>Read-only discrepancy scan. Review findings before accepting new stock or performing a deployment.</p></div><button type="button" class="button button-small" id="integrity-audit-run">Run integrity scan</button></div><div id="integrity-audit-results" role="status" aria-live="polite" class="table-wrap"><p class="muted">Run a check to review stock, receiving, picking, carton and incident integrity.</p></div></div>
   <div class="panel">
     <div class="panel-title"><h3>Warehouse intelligence</h3></div>
     <p>Live operational snapshots from the warehouse ledger. Carrier milestones are entered manually and are not independently verified.</p>
@@ -299,5 +300,5 @@
 </div>
 <meta name="csrf-token" content="{{ csrf }}">
 <script src="/static/app.js" defer></script>
-{% if not is_demo %}<script src="/static/advanced_ops.js" defer></script>{% endif %}
+{% if not is_demo %}<script src="/static/advanced_ops.js" defer></script><script src="/static/integrity_audit.js" defer></script>{% endif %}
 {% endblock %}
