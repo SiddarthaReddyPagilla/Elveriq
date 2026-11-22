@@ -1243,3 +1243,14 @@ def report_workforce_load(request: Request, warehouse_id: int | None = Query(def
         session: Session = Depends(get_db)):
     bid = read_access(request, session, False)
     return warehouse_reports.workforce_load(session, bid, warehouse_id)
+
+
+from .integrity_audit import audit as warehouse_integrity_audit
+
+@router.get('/reports/integrity-audit')
+def report_integrity_audit(request: Request,
+        warehouse_id: int | None = Query(default=None, gt=0),
+        session: Session = Depends(get_db)):
+    """Read-only, scoped safety findings; no physical reconciliation claims."""
+    bid = read_access(request, session, False)
+    return warehouse_integrity_audit(session, bid, warehouse_id)
