@@ -80,3 +80,16 @@ def check_bin_membership(session,bid,wid):
     return _finding(session,'bin_reference_scope','critical',_in_warehouse(q,m,wid),
         'Placed stock bin, product, and warehouse references disagree')
 RULES.append(check_bin_membership)
+
+def check_placed_vs_accounting(session,bid,wid):
+    m=BinStock
+    placed=(select(m.warehouse_id.label('wid'),m.product_id.label('pid'),
+             func.sum(m.on_hand).label('placed')).where(m.business_id==bid)
+             .group_by(m.warehouse_id,m.product_id).subquery())
+    q=(select(StockLevel.id).join(placed,and_(StockLevel.warehouse_id==placed.c.wid,
+         StockLevel.product_id==placed.c.pid)).where(StockLevel.business_id==bid,
+         placed.c.placed>StockLevel.on_hand))
+    if wid is not None:q=q.where(StockLevel.warehouse_id==wid)
+    return _finding(session,'placed_exceeds_ledger','critical',q,
+        'The sum of placed bin units exceeds the warehouse accounting balance')
+RULES.append(check_placed_vs_accounting)
