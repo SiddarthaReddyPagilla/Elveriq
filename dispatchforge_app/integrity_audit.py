@@ -125,3 +125,17 @@ def check_pick_references(session,bid,wid):
     return _finding(session,'pick_quantity_scope','critical',_in_warehouse(q,m,wid),
         'Pick quantity is invalid or linked cartons belong to another workspace')
 RULES.append(check_pick_references)
+
+def check_carton_consistency(session,bid,wid):
+    m=OutboundCartonItem
+    q=(select(m.id).join(OutboundCarton,OutboundCarton.id==m.carton_id)
+       .join(OutboundPick,OutboundPick.id==m.pick_id).where(
+          m.business_id==bid,OutboundCarton.business_id==bid,
+          or_(m.quantity<=0,m.quantity!=OutboundPick.quantity,
+              OutboundPick.business_id!=bid,
+              OutboundCarton.order_id!=OutboundPick.order_id,
+              OutboundCarton.warehouse_id!=OutboundPick.warehouse_id)))
+    if wid is not None:q=q.where(OutboundCarton.warehouse_id==wid)
+    return _finding(session,'carton_pick_consistency','critical',q,
+        'Packed quantity or carton order/warehouse disagrees with verified pick')
+RULES.append(check_carton_consistency)
