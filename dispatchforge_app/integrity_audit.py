@@ -70,3 +70,13 @@ def check_bin_allocations(session,bid,wid):
     return _finding(session,'bin_allocations','critical',_in_warehouse(q,m,wid),
         'Physically placed or allocated stock has invalid quantities')
 RULES.append(check_bin_allocations)
+
+def check_bin_membership(session,bid,wid):
+    m=BinStock
+    q=(select(m.id).join(WarehouseBin,WarehouseBin.id==m.bin_id)
+       .join(Product,Product.id==m.product_id).where(m.business_id==bid,
+       or_(WarehouseBin.business_id!=bid,WarehouseBin.warehouse_id!=m.warehouse_id,
+           Product.business_id!=bid)))
+    return _finding(session,'bin_reference_scope','critical',_in_warehouse(q,m,wid),
+        'Placed stock bin, product, and warehouse references disagree')
+RULES.append(check_bin_membership)
