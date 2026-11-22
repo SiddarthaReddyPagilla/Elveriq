@@ -139,3 +139,14 @@ def check_carton_consistency(session,bid,wid):
     return _finding(session,'carton_pick_consistency','critical',q,
         'Packed quantity or carton order/warehouse disagrees with verified pick')
 RULES.append(check_carton_consistency)
+
+def check_warehouse_tasks(session,bid,wid):
+    m=WarehouseTask
+    q=(select(m.id).where(m.business_id==bid,or_(m.quantity<=0,
+         and_(m.kind=='putaway',m.to_bin_id.is_(None)),
+         and_(m.kind=='unlocate',m.from_bin_id.is_(None)),
+         and_(m.kind=='move',or_(m.from_bin_id.is_(None),m.to_bin_id.is_(None),
+             m.from_bin_id==m.to_bin_id)))))
+    return _finding(session,'task_topology','critical',_in_warehouse(q,m,wid),
+        'Warehouse task has nonpositive units or invalid source/destination topology')
+RULES.append(check_warehouse_tasks)
