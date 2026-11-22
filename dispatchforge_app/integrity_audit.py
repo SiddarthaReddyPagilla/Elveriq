@@ -54,3 +54,12 @@ def check_stock_balance(session, bid, wid):
     return _finding(session,'stock_balance','critical',_in_warehouse(q,m,wid),
         'Warehouse balance is negative or reserved units exceed on-hand')
 RULES.append(check_stock_balance)
+
+def check_stock_tenancy(session,bid,wid):
+    m=StockLevel
+    q=(select(m.id).join(Warehouse, Warehouse.id==m.warehouse_id)
+       .join(Product,Product.id==m.product_id).where(m.business_id==bid,
+       or_(Warehouse.business_id!=bid,Product.business_id!=bid)))
+    return _finding(session,'stock_reference_scope','critical',_in_warehouse(q,m,wid),
+        'Stock belongs to a product or warehouse owned by another workspace')
+RULES.append(check_stock_tenancy)
