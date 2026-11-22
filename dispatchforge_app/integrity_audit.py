@@ -63,3 +63,10 @@ def check_stock_tenancy(session,bid,wid):
     return _finding(session,'stock_reference_scope','critical',_in_warehouse(q,m,wid),
         'Stock belongs to a product or warehouse owned by another workspace')
 RULES.append(check_stock_tenancy)
+
+def check_bin_allocations(session,bid,wid):
+    m=BinStock
+    q=select(m.id).where(m.business_id==bid,or_(m.on_hand<0,m.allocated<0,m.allocated>m.on_hand))
+    return _finding(session,'bin_allocations','critical',_in_warehouse(q,m,wid),
+        'Physically placed or allocated stock has invalid quantities')
+RULES.append(check_bin_allocations)
