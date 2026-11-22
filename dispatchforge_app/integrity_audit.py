@@ -103,3 +103,14 @@ def check_capacity(session,bid,wid):
     return _finding(session,'bin_overcapacity','warning',_in_warehouse(q,b,wid),
         'Stored units exceed the configured active bin unit capacity')
 RULES.append(check_capacity)
+
+def check_inbound_disposition(session,bid,wid):
+    m=InboundNoticeLine
+    q=(select(m.id).join(InboundNotice,InboundNotice.id==m.notice_id)
+        .where(m.business_id==bid,InboundNotice.business_id==bid,
+         or_(m.expected<=0,m.accepted<0,m.damaged<0,
+             m.accepted+m.damaged>m.expected)))
+    if wid is not None:q=q.where(InboundNotice.warehouse_id==wid)
+    return _finding(session,'inbound_disposition','critical',q,
+        'ASN accepted or damaged units exceed the expected quantity')
+RULES.append(check_inbound_disposition)
