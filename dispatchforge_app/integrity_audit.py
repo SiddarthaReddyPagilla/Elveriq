@@ -114,3 +114,14 @@ def check_inbound_disposition(session,bid,wid):
     return _finding(session,'inbound_disposition','critical',q,
         'ASN accepted or damaged units exceed the expected quantity')
 RULES.append(check_inbound_disposition)
+
+def check_pick_references(session,bid,wid):
+    m=OutboundPick
+    q=(select(m.id).join(OutboundCarton,OutboundCarton.order_id==m.order_id,isouter=True)
+         .where(m.business_id==bid,or_(m.quantity<=0,
+               and_(OutboundCarton.id.is_not(None),OutboundCarton.business_id!=bid))))
+    # Multiple cartons on the same order must not duplicate sampled pick IDs.
+    q=q.distinct()
+    return _finding(session,'pick_quantity_scope','critical',_in_warehouse(q,m,wid),
+        'Pick quantity is invalid or linked cartons belong to another workspace')
+RULES.append(check_pick_references)
