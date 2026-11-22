@@ -35,22 +35,50 @@ def test_warehouse_scope_and_tenant_isolation(client):
     second=client.get('/api/warehouses').json()[0]['id']
     assert client.get(f'/api/reports/integrity-audit?warehouse_id={second}').status_code==200
 
-def test_findings_are_bounded_and_read_only(client):
-    register(client,'Audit controls','audit-controls@example.com')
+def test_capacity_warning_reports_real_record_without_mutating_it(client):
     from sqlalchemy import select
-    from dispatchforge_app.models import StockLevel, Warehouse, Product
-    # A temporary test-only mutation bypasses the service to mimic corrupted
-    # external data; the audit must never modify or repair it.
-    db=client.app.state.db
-    with db.SessionLocal() as session:
-        wh=session.scalar(select(Warehouse).where(Warehouse.business_id!=None))
-        product=Product(business_id=wh.business_id,sku='AUDIT-1',name='Audit product')
-        session.add(product);session.flush()
-        session.add(StockLevel(business_id=wh.business_id,warehouse_id=wh.id,
-                               product_id=product.id,on_hand=2,reserved=4))
-        # SQLite enforces stock CHECK constraints, so use a tenant-safe
-        # physical bin capacity warning instead in the next iteration.
-        session.rollback()
-    response=client.get('/api/reports/integrity-audit')
-    assert response.status_code==200
-    assert all(len(x['sample_ids'])<=25 for x in response.json()['checks'])
+    from dispatchforge_app.models import WarehouseBin
+    from tests_web.test_warehouse_web import add_stock
+    from tests_web.test_warehouse_execution import endpoint, task, complete
+    h=register(client,'Audit capacity','audit-capacity@example.com')
+    wid=add_stock(client,h,sku='PRODUCT-1',quantity=20)
+    bin_id=endpoint(client,h,name='AUDIT-BIN',wid=wid,cap=15)
+    task_id=task(client,h,wid,bin_id,10,key='audit-putaway-key').json()['id']
+    assert client.post(f'/api/tasks/{task_id}/claim',headers=h).status_code==200
+    assert client.post(f'/api/tasks/{task_id}/start',headers=h).status_code==200
+    assert complete(client,h,task_id,target='AUDIT-BIN').status_code==200
+    with client.app.state.db.SessionLocal() as session:
+        bin_record=session.get(WarehouseBin,bin_id)
+        bin_record.capacity_units=5
+        session.commit()
+    before=client.get('/api/locations/stock').json()
+    report=client.get(f'/api/reports/integrity-audit?warehouse_id={wid}').json()
+    warning=next(row for row in report['checks'] if row['rule']=='bin_overcapacity')
+    assert warning['severity']=='warning'
+    assert warning['affected_records']==1
+    assert warning['sample_ids']==[bin_id]
+    assert report['failed_rules']==1
+    assert report['ready_for_manual_review'] is False
+    assert client.get('/api/locations/stock').json()==before
+
+
+def test_samples_are_bounded_even_with_many_warning_bins(client):
+    from dispatchforge_app.models import WarehouseBin, BinStock, Product, Warehouse
+    from sqlalchemy import select
+    register(client,'Audit pagination','audit-many@example.com')
+    with client.app.state.db.SessionLocal() as s:
+        wid=client.get('/api/warehouses').json()[0]['id']
+        w=s.get(Warehouse,wid)
+        p=Product(business_id=w.business_id,sku='AUDIT-MANY',name='Audit many')
+        s.add(p);s.flush()
+        for index in range(30):
+            b=WarehouseBin(business_id=w.business_id,warehouse_id=w.id,code=f'R-{index:03}',capacity_units=1)
+            s.add(b);s.flush()
+            s.add(BinStock(business_id=w.business_id,warehouse_id=w.id,bin_id=b.id,
+                product_id=p.id,on_hand=2,allocated=0))
+        s.commit()
+    row=next(r for r in client.get('/api/reports/integrity-audit').json()['checks']
+        if r['rule']=='bin_overcapacity')
+    assert row['affected_records']==30
+    assert row['samples_truncated'] is True
+    assert len(row['sample_ids'])==25
