@@ -150,3 +150,12 @@ def check_warehouse_tasks(session,bid,wid):
     return _finding(session,'task_topology','critical',_in_warehouse(q,m,wid),
         'Warehouse task has nonpositive units or invalid source/destination topology')
 RULES.append(check_warehouse_tasks)
+
+def check_incident_states(session,bid,wid):
+    m=WarehouseException
+    q=select(m.id).where(m.business_id==bid,or_(
+        and_(m.status=='resolved',m.resolved_at.is_(None)),
+        and_(m.status!='resolved',m.resolved_at.is_not(None))))
+    return _finding(session,'incident_resolution','warning',_in_warehouse(q,m,wid),
+        'Warehouse incident status disagrees with resolution timestamp')
+RULES.append(check_incident_states)
