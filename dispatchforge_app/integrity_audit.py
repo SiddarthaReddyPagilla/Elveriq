@@ -47,3 +47,10 @@ def audit(session: Session, bid: int, wid: int | None = None):
 
 def _in_warehouse(q, model, wid):
     return q.where(model.warehouse_id == wid) if wid is not None else q
+
+def check_stock_balance(session, bid, wid):
+    m=StockLevel
+    q=select(m.id).where(m.business_id==bid, or_(m.on_hand<0,m.reserved<0,m.reserved>m.on_hand))
+    return _finding(session,'stock_balance','critical',_in_warehouse(q,m,wid),
+        'Warehouse balance is negative or reserved units exceed on-hand')
+RULES.append(check_stock_balance)
