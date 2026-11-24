@@ -14,6 +14,7 @@ from .models import (Warehouse, Product, StockLevel, WarehouseBin, BinStock,
 
 SAMPLE_LIMIT = 25
 RULES = []
+RULE_SEVERITY = {}
 
 def _scope(session: Session, bid: int, wid: int | None):
     if wid is not None and session.scalar(select(Warehouse.id).where(
@@ -34,9 +35,11 @@ def ids_sort(statement):
     # Queries below deliberately select the model's primary key first.
     return list(statement.selected_columns)[0]
 
-def audit(session: Session, bid: int, wid: int | None = None):
+def audit(session: Session, bid: int, wid: int | None = None,
+          severity: str | None = None):
     _scope(session, bid, wid)
-    checks = [fn(session, bid, wid) for fn in RULES]
+    checks = [fn(session, bid, wid) for fn in RULES
+              if severity is None or RULE_SEVERITY[fn.__name__] == severity]
     return {'source':'live_database_read_only', 'warehouse_id':wid,
         'read_only':True, 'no_repairs_performed':True,
         'checks':checks, 'checked_rules':len(checks),
@@ -159,3 +162,13 @@ def check_incident_states(session,bid,wid):
     return _finding(session,'incident_resolution','warning',_in_warehouse(q,m,wid),
         'Warehouse incident status disagrees with resolution timestamp')
 RULES.append(check_incident_states)
+
+# Severity classification for bounded, selective scans.
+RULE_SEVERITY.update({
+    'check_stock_balance':'critical', 'check_stock_tenancy':'critical',
+    'check_bin_allocations':'critical', 'check_bin_membership':'critical',
+    'check_placed_vs_accounting':'critical', 'check_capacity':'warning',
+    'check_inbound_disposition':'critical', 'check_pick_references':'critical',
+    'check_carton_consistency':'critical', 'check_warehouse_tasks':'critical',
+    'check_incident_states':'warning',
+})
