@@ -14,6 +14,7 @@ from .models import (Warehouse, Product, StockLevel, WarehouseBin, BinStock,
 
 SAMPLE_LIMIT = 25
 RULES = []
+RULE_SEVERITY = {}
 
 def _scope(session: Session, bid: int, wid: int | None):
     if wid is not None and session.scalar(select(Warehouse.id).where(
@@ -34,10 +35,20 @@ def ids_sort(statement):
     # Queries below deliberately select the model's primary key first.
     return list(statement.selected_columns)[0]
 
-def audit(session: Session, bid: int, wid: int | None = None):
+def audit(session: Session, bid: int, wid: int | None = None,
+          severity: str | None = None, rule: str | None = None):
     _scope(session, bid, wid)
-    checks = [fn(session, bid, wid) for fn in RULES]
+    if rule is not None and rule not in RULE_NAMES.values():
+        raise DomainError('Unknown integrity rule', 422)
+    checks = [fn(session, bid, wid) for fn in RULES
+              if (severity is None or RULE_SEVERITY[fn.__name__] == severity)
+              and (rule is None or RULE_NAMES[fn.__name__] == rule)]
+    severity_totals = {level: {
+        'failed_rules': sum(row['affected_records'] > 0 for row in checks if row['severity'] == level),
+        'affected_records': sum(row['affected_records'] for row in checks if row['severity'] == level)
+    } for level in ('critical', 'warning')}
     return {'source':'live_database_read_only', 'warehouse_id':wid,
+        'severity_filter':severity, 'rule_filter':rule, 'severity_totals':severity_totals,
         'read_only':True, 'no_repairs_performed':True,
         'checks':checks, 'checked_rules':len(checks),
         'failed_rules':sum(row['affected_records'] > 0 for row in checks),
@@ -159,3 +170,27 @@ def check_incident_states(session,bid,wid):
     return _finding(session,'incident_resolution','warning',_in_warehouse(q,m,wid),
         'Warehouse incident status disagrees with resolution timestamp')
 RULES.append(check_incident_states)
+
+# Severity classification for bounded, selective scans.
+RULE_SEVERITY.update({
+    'check_stock_balance':'critical', 'check_stock_tenancy':'critical',
+    'check_bin_allocations':'critical', 'check_bin_membership':'critical',
+    'check_placed_vs_accounting':'critical', 'check_capacity':'warning',
+    'check_inbound_disposition':'critical', 'check_pick_references':'critical',
+    'check_carton_consistency':'critical', 'check_warehouse_tasks':'critical',
+    'check_incident_states':'warning',
+})
+
+RULE_NAMES = {
+    'check_stock_balance':'stock_balance',
+    'check_stock_tenancy':'stock_reference_scope',
+    'check_bin_allocations':'bin_allocations',
+    'check_bin_membership':'bin_reference_scope',
+    'check_placed_vs_accounting':'placed_exceeds_ledger',
+    'check_capacity':'bin_overcapacity',
+    'check_inbound_disposition':'inbound_disposition',
+    'check_pick_references':'pick_quantity_scope',
+    'check_carton_consistency':'carton_pick_consistency',
+    'check_warehouse_tasks':'task_topology',
+    'check_incident_states':'incident_resolution',
+}

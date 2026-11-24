@@ -82,3 +82,49 @@ def test_samples_are_bounded_even_with_many_warning_bins(client):
     assert row['affected_records']==30
     assert row['samples_truncated'] is True
     assert len(row['sample_ids'])==25
+
+
+def test_integrity_severity_filter_and_summary(client):
+    register(client)
+    full = client.get('/api/reports/integrity-audit').json()
+    assert full['severity_totals'] == {
+        'critical': {'failed_rules': 0, 'affected_records': 0},
+        'warning': {'failed_rules': 0, 'affected_records': 0},
+    }
+    critical = client.get('/api/reports/integrity-audit?severity=critical')
+    assert critical.status_code == 200
+    data = critical.json()
+    assert data['severity_filter'] == 'critical'
+    assert data['checked_rules'] == 9
+    assert all(row['severity'] == 'critical' for row in data['checks'])
+    assert client.get('/api/reports/integrity-audit?severity=high').status_code == 422
+
+
+def test_integrity_rule_filter_and_invalid_rule(client):
+    register(client)
+    result = client.get('/api/reports/integrity-audit?rule=bin_overcapacity')
+    assert result.status_code == 200
+    assert result.json()['checked_rules'] == 1
+    assert result.json()['checks'][0]['rule'] == 'bin_overcapacity'
+    assert client.get('/api/reports/integrity-audit?rule=does_not_exist').status_code == 422
+    assert client.get('/api/reports/integrity-audit?rule=bin_overcapacity&severity=critical').json()['checked_rules'] == 0
+
+
+def test_integrity_csv_requires_authentication_and_has_safe_columns(client):
+    assert client.get('/api/reports/integrity-audit.csv').status_code == 401
+    register(client)
+    result = client.get('/api/reports/integrity-audit.csv?rule=bin_overcapacity')
+    assert result.status_code == 200
+    assert result.headers['cache-control'] == 'no-store'
+    assert result.headers['content-type'].startswith('text/csv')
+    lines = result.text.splitlines()
+    assert lines[0] == 'rule,severity,affected_records,sample_ids,samples_truncated,description'
+    assert len(lines) == 2 and lines[1].startswith('bin_overcapacity,warning,')
+    assert client.get('/api/reports/integrity-audit.csv?rule=invalid').status_code == 422
+
+
+def test_integrity_csv_rejects_other_workspace_warehouse(client):
+    register(client, 'First export tenant', 'audit-export-first@example.com')
+    wid = client.get('/api/warehouses').json()[0]['id']
+    register(client, 'Second export tenant', 'audit-export-second@example.com')
+    assert client.get(f'/api/reports/integrity-audit.csv?warehouse_id={wid}').status_code == 404
