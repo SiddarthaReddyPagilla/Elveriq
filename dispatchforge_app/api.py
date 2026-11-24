@@ -1251,7 +1251,8 @@ from .integrity_audit import audit as warehouse_integrity_audit
 def report_integrity_audit(request: Request,
         warehouse_id: int | None = Query(default=None, gt=0),
         severity: str | None = Query(default=None, pattern='^(critical|warning)$'),
+        rule: str | None = Query(default=None, min_length=1, max_length=64),
         session: Session = Depends(get_db)):
     """Read-only, scoped safety findings; no physical reconciliation claims."""
     bid = read_access(request, session, False)
-    return warehouse_integrity_audit(session, bid, warehouse_id, severity=severity)
+    return warehouse_integrity_audit(session, bid, warehouse_id, severity=severity, rule=rule)

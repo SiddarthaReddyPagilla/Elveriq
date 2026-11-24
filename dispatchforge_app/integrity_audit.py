@@ -36,10 +36,11 @@ def ids_sort(statement):
     return list(statement.selected_columns)[0]
 
 def audit(session: Session, bid: int, wid: int | None = None,
-          severity: str | None = None):
+          severity: str | None = None, rule: str | None = None):
     _scope(session, bid, wid)
     checks = [fn(session, bid, wid) for fn in RULES
-              if severity is None or RULE_SEVERITY[fn.__name__] == severity]
+              if (severity is None or RULE_SEVERITY[fn.__name__] == severity)
+              and (rule is None or RULE_NAMES[fn.__name__] == rule)]
     return {'source':'live_database_read_only', 'warehouse_id':wid,
         'read_only':True, 'no_repairs_performed':True,
         'checks':checks, 'checked_rules':len(checks),
@@ -172,3 +173,17 @@ RULE_SEVERITY.update({
     'check_carton_consistency':'critical', 'check_warehouse_tasks':'critical',
     'check_incident_states':'warning',
 })
+
+RULE_NAMES = {
+    'check_stock_balance':'stock_balance',
+    'check_stock_tenancy':'stock_reference_scope',
+    'check_bin_allocations':'bin_allocations',
+    'check_bin_membership':'bin_reference_scope',
+    'check_placed_vs_accounting':'placed_exceeds_ledger',
+    'check_capacity':'bin_overcapacity',
+    'check_inbound_disposition':'inbound_disposition',
+    'check_pick_references':'pick_quantity_scope',
+    'check_carton_consistency':'carton_pick_consistency',
+    'check_warehouse_tasks':'task_topology',
+    'check_incident_states':'incident_resolution',
+}
