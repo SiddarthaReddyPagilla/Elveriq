@@ -1256,3 +1256,24 @@ def report_integrity_audit(request: Request,
     """Read-only, scoped safety findings; no physical reconciliation claims."""
     bid = read_access(request, session, False)
     return warehouse_integrity_audit(session, bid, warehouse_id, severity=severity, rule=rule)
+
+@router.get('/reports/integrity-audit.csv')
+def export_integrity_audit(request: Request,
+        warehouse_id: int | None = Query(default=None, gt=0),
+        severity: str | None = Query(default=None, pattern='^(critical|warning)$'),
+        rule: str | None = Query(default=None, min_length=1, max_length=64),
+        session: Session = Depends(get_db)):
+    """Export the same read-only, tenant-scoped findings as the JSON endpoint."""
+    bid = read_access(request, session, False)
+    report = warehouse_integrity_audit(session, bid, warehouse_id, severity=severity, rule=rule)
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(['rule', 'severity', 'affected_records', 'sample_ids', 'samples_truncated', 'description'])
+    for entry in report['checks']:
+        writer.writerow([csv_cell(entry['rule']), csv_cell(entry['severity']),
+                         entry['affected_records'],
+                         csv_cell(' '.join(str(n) for n in entry['sample_ids'])),
+                         entry['samples_truncated'], csv_cell(entry['description'])])
+    return Response(stream.getvalue(), media_type='text/csv; charset=utf-8',
+        headers={'Content-Disposition': 'attachment; filename="elveriq-integrity-audit.csv"',
+                 'Cache-Control': 'no-store'})
