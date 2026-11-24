@@ -38,10 +38,17 @@ def ids_sort(statement):
 def audit(session: Session, bid: int, wid: int | None = None,
           severity: str | None = None, rule: str | None = None):
     _scope(session, bid, wid)
+    if rule is not None and rule not in RULE_NAMES.values():
+        raise DomainError('Unknown integrity rule', 422)
     checks = [fn(session, bid, wid) for fn in RULES
               if (severity is None or RULE_SEVERITY[fn.__name__] == severity)
               and (rule is None or RULE_NAMES[fn.__name__] == rule)]
+    severity_totals = {level: {
+        'failed_rules': sum(row['affected_records'] > 0 for row in checks if row['severity'] == level),
+        'affected_records': sum(row['affected_records'] for row in checks if row['severity'] == level)
+    } for level in ('critical', 'warning')}
     return {'source':'live_database_read_only', 'warehouse_id':wid,
+        'severity_filter':severity, 'rule_filter':rule, 'severity_totals':severity_totals,
         'read_only':True, 'no_repairs_performed':True,
         'checks':checks, 'checked_rules':len(checks),
         'failed_rules':sum(row['affected_records'] > 0 for row in checks),
