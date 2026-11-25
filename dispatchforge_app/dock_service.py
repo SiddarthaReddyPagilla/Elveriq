@@ -93,3 +93,44 @@ def _window(start, end):
     if start < datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1):
         raise DomainError('Cannot schedule a window more than one day in the past')
     return start, end
+
+
+def schedule(session, bid, wid, door_id, direction, reference, start_at, end_at,
+             actor_id, key, carrier='', vehicle_plate='', note=''):
+    if direction not in {'inbound','outbound'}:
+        raise DomainError('Direction must be inbound or outbound')
+    reference = _clean(reference, 'Reference', 100)
+    carrier = (carrier or '').strip()
+    plate = (vehicle_plate or '').strip()
+    note = (note or '').strip()
+    if len(carrier) > 120 or len(plate) > 64 or len(note) > 300:
+        raise DomainError('Appointment details are too long')
+    start, end = _window(start_at, end_at)
+    key = _clean(key, 'Idempotency-Key', 128)
+    if len(key) < 8: raise DomainError('Idempotency-Key must have at least 8 characters')
+    content = [wid, door_id, direction, reference, start.isoformat(), end.isoformat(), carrier, plate, note]
+    fingerprint = hashlib.sha256(json.dumps(content).encode()).hexdigest()
+    existing = session.scalar(select(DockAppointment).where(
+        DockAppointment.business_id == bid, DockAppointment.request_key == key))
+    if existing:
+        if existing.fingerprint != fingerprint: raise DomainError('Idempotency key was reused with different appointment details', 409)
+        return _serialize(existing), True
+    _warehouse(session, bid, wid, lock=True)
+    door = _door(session, bid, door_id)
+    if door.warehouse_id != wid or not door.active:
+        raise DomainError('Dock door is unavailable in this warehouse', 409)
+    if door.purpose not in {'both', direction}:
+        raise DomainError('Dock door does not serve this direction', 409)
+    # Cross-request lock of the warehouse serializes overlapping inserts in PostgreSQL.
+    overlapping = session.scalar(select(DockAppointment.id).where(
+        DockAppointment.business_id == bid, DockAppointment.door_id == door_id,
+        DockAppointment.status.in_(ACTIVE),
+        DockAppointment.start_at < end, DockAppointment.end_at > start))
+    if overlapping is not None: raise DomainError('Dock door is already reserved for that window', 409)
+    appt = DockAppointment(business_id=bid, warehouse_id=wid, door_id=door_id,
+        direction=direction, reference=reference, carrier=carrier, vehicle_plate=plate,
+        note=note, start_at=start, end_at=end, request_key=key,
+        fingerprint=fingerprint, created_by=actor_id, status='scheduled')
+    session.add(appt); session.flush()
+    _event(session, bid, appt, 'scheduled', actor_id, note)
+    return _serialize(appt), False
