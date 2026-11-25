@@ -215,3 +215,17 @@ def history(session, bid, appointment_id):
     ).order_by(DockAppointmentEvent.id)).all()
     return [{'id': e.id, 'action': e.action, 'actor_id': e.actor_id,
              'note': e.note, 'created_at': e.created_at.isoformat()} for e in events]
+
+
+def dock_metrics(session, bid, wid=None):
+    if wid is not None: _warehouse(session, bid, wid)
+    q = select(DockAppointment.status, func.count(DockAppointment.id)).where(
+        DockAppointment.business_id == bid)
+    if wid is not None: q = q.where(DockAppointment.warehouse_id == wid)
+    counts = dict(session.execute(q.group_by(DockAppointment.status)).all())
+    return {'warehouse_id': wid, 'scheduled': counts.get('scheduled', 0),
+        'checked_in': counts.get('checked_in', 0),
+        'completed': counts.get('completed', 0),
+        'canceled': counts.get('canceled', 0),
+        'no_show': counts.get('no_show', 0),
+        'source': 'live_database_snapshot', 'inventory_affected': False}
