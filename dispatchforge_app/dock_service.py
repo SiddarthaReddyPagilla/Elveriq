@@ -67,3 +67,11 @@ def create_door(session, bid, wid, code, purpose):
     door = DockDoor(business_id=bid, warehouse_id=wid, code=code, purpose=purpose)
     session.add(door); session.flush()
     return {'id': door.id, 'warehouse_id': wid, 'code': code, 'purpose': purpose, 'active': True}
+
+
+def list_doors(session, bid, wid=None):
+    if wid is not None: _warehouse(session, bid, wid)
+    q = select(DockDoor).where(DockDoor.business_id == bid)
+    if wid is not None: q = q.where(DockDoor.warehouse_id == wid)
+    return [{'id': d.id, 'warehouse_id': d.warehouse_id, 'code': d.code,
+             'purpose': d.purpose, 'active': d.active} for d in session.scalars(q.order_by(DockDoor.id))]
