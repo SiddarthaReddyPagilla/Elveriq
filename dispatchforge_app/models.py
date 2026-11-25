@@ -552,3 +552,31 @@ class DockDoor(Base):
     purpose: Mapped[str] = mapped_column(String(16), default="both", nullable=False)
     active: Mapped[bool] = mapped_column(default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DockAppointment(Base):
+    """A reserved time window, with one atomic lifecycle per appointment."""
+    __tablename__ = "dock_appointments"
+    __table_args__ = (
+        UniqueConstraint("business_id", "request_key", name="uq_dock_appointment_retry"),
+        CheckConstraint("end_at > start_at", name="dock_appointment_positive_window"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False, index=True)
+    door_id: Mapped[int] = mapped_column(ForeignKey("dock_doors.id"), nullable=False, index=True)
+    direction: Mapped[str] = mapped_column(String(12), nullable=False)
+    reference: Mapped[str] = mapped_column(String(100), nullable=False)
+    carrier: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    vehicle_plate: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    note: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="scheduled", nullable=False)
+    request_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
