@@ -1347,3 +1347,39 @@ def dock_appointment_create(payload:DockScheduleIn,request:Request,
         actor.id,idempotency_key,payload.carrier,payload.vehicle_plate,payload.note)
     session.commit()
     return {**result,'replayed':replayed}
+
+
+@router.post('/dock/appointments/{appointment_id}/check-in')
+def dock_check_in(appointment_id:int, request:Request, payload:DockNoteIn,
+                  x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    result=dock_service.check_in(session,actor.business_id,appointment_id,actor.id,payload.note)
+    session.commit(); return result
+
+@router.post('/dock/appointments/{appointment_id}/complete')
+def dock_complete(appointment_id:int,request:Request,payload:DockNoteIn,
+                  x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    result=dock_service.complete(session,actor.business_id,appointment_id,actor.id,payload.note)
+    session.commit(); return result
+
+@router.post('/dock/appointments/{appointment_id}/cancel')
+def dock_cancel(appointment_id:int,request:Request,payload:DockNoteIn,
+                  x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    result=dock_service.cancel(session,actor.business_id,appointment_id,actor.id,payload.note)
+    session.commit(); return result
+
+@router.post('/dock/appointments/{appointment_id}/no-show')
+def dock_no_show(appointment_id:int,request:Request,payload:DockNoteIn,
+                  x_csrf_token:str=Header(default=''),session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    result=dock_service.no_show(session,actor.business_id,appointment_id,actor.id,payload.note)
+    session.commit(); return result
+
+@router.get('/dock/appointments/{appointment_id}/events')
+def dock_appointment_events(appointment_id:int,request:Request,
+                session:Session=Depends(get_db)):
+    return dock_service.history(session,read_access(request,session,False),appointment_id)
