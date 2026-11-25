@@ -1298,3 +1298,52 @@ class DockScheduleIn(BaseModel):
 
 class DockNoteIn(BaseModel):
     note: str = Field(default='', max_length=300)
+
+
+from . import dock_service
+
+@router.get('/dock/doors')
+def dock_door_directory(request:Request, warehouse_id:int|None=Query(default=None,gt=0),
+                        session:Session=Depends(get_db)):
+    return dock_service.list_doors(session, read_access(request,session,False), warehouse_id)
+
+@router.post('/dock/doors', status_code=201)
+def dock_door_create(payload:DockDoorIn, request:Request,
+                     x_csrf_token:str=Header(default=''), session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    result=dock_service.create_door(session,actor.business_id,payload.warehouse_id,
+                                    payload.code,payload.purpose)
+    session.commit()
+    return result
+
+@router.get('/dock/appointments')
+def dock_appointment_directory(request:Request,
+       warehouse_id:int|None=Query(default=None,gt=0), status:str|None=None,
+       before_id:int|None=Query(default=None,gt=0), limit:int=Query(default=100,ge=1,le=200),
+       session:Session=Depends(get_db)):
+    return dock_service.list_appointments(session,read_access(request,session,False),
+                                         warehouse_id,status,before_id,limit)
+
+@router.get('/dock/metrics')
+def dock_readiness(request:Request, warehouse_id:int|None=Query(default=None,gt=0),
+                   session:Session=Depends(get_db)):
+    return dock_service.dock_metrics(session,read_access(request,session,False),warehouse_id)
+
+@router.get('/dock/doors/{door_id}/availability')
+def dock_slot_check(door_id:int,request:Request,start_at:str,end_at:str,
+                    session:Session=Depends(get_db)):
+    return dock_service.availability(session,read_access(request,session,False),
+                                    door_id,start_at,end_at)
+
+@router.post('/dock/appointments',status_code=201)
+def dock_appointment_create(payload:DockScheduleIn,request:Request,
+    idempotency_key:str=Header(default=''),x_csrf_token:str=Header(default=''),
+    session:Session=Depends(get_db)):
+    actor=write_access(request,session,x_csrf_token)
+    require_role(actor,{'owner','manager'})
+    result,replayed=dock_service.schedule(session,actor.business_id,payload.warehouse_id,
+        payload.door_id,payload.direction,payload.reference,payload.start_at,payload.end_at,
+        actor.id,idempotency_key,payload.carrier,payload.vehicle_plate,payload.note)
+    session.commit()
+    return {**result,'replayed':replayed}
