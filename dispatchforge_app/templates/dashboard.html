@@ -10,6 +10,7 @@
       <button class="side-link" data-section="locations">▤ &nbsp; Storage bins</button>
       <button class="side-link" data-section="tasks">☷ &nbsp; Warehouse tasks</button>
       {% if not is_demo %}<button class="side-link" data-section="outbound">▤ &nbsp; Pick · Pack · Dispatch</button>{% endif %}
+      {% if not is_demo %}<button class="side-link" data-section="dock">🚚 &nbsp; Dock appointments</button>{% endif %}
       {% if not is_demo %}<button class="side-link" data-section="inbound">♧ &nbsp; Inbound dock &amp; ASN</button>{% endif %}
       {% if not is_demo %}<button class="side-link" data-section="exceptions">⚑ &nbsp; Operations exceptions</button>{% endif %}
       {% if not is_demo %}<button class="side-link" data-section="shipping">⇥ &nbsp; Shipment tracking</button>{% endif %}
@@ -189,6 +190,17 @@
       <div class="panel"><div class="panel-title"><h3>Purchase orders</h3></div><div id="purchases-table" class="table-wrap"></div></div>
     </section>
     {% if not is_demo %}
+    <section class="section-view hidden" data-view="dock" id="dock-scheduler">
+      <div class="section-title"><div><h2>Dock appointment scheduling</h2><p>Reserve inbound or outbound doors, avoid overlapping trucks, and record operator check-in and release. Does not post inventory.</p></div></div>
+      <div class="stat-grid"><div class="stat-card"><span>Upcoming bookings</span><strong id="dock-kpi-scheduled">—</strong></div><div class="stat-card"><span>Trucks checked in</span><strong id="dock-kpi-in">—</strong></div><div class="stat-card"><span>Completed visits</span><strong id="dock-kpi-done">—</strong></div><div class="stat-card"><span>No-shows</span><strong id="dock-kpi-missed">—</strong></div></div>
+      {% if role in ['owner','manager'] %}
+      <form id="dock-door-form" class="panel order-form"><h3>Register physical door</h3><div class="execution-fields"><label>Warehouse<select name="warehouse_id" required></select></label><label>Door scan code<input name="code" maxlength="64" placeholder="DOCK-01" required></label><label>Door purpose<select name="purpose"><option value="both">Inbound and outbound</option><option value="inbound">Inbound only</option><option value="outbound">Outbound only</option></select></label></div><button class="button" type="submit">Register door</button></form>
+      <form id="dock-book-form" class="panel order-form"><h3>Book arriving vehicle</h3><div class="execution-fields"><label>Warehouse<select name="warehouse_id" required></select></label><label>Door<select name="door_id" required></select></label><label>Direction<select name="direction"><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label><label>Reference<input name="reference" maxlength="100" required placeholder="ASN-1003 or SHIP-1003"></label><label>Carrier<input name="carrier" maxlength="120" placeholder="Carrier"></label><label>Vehicle plate<input name="vehicle_plate" maxlength="64" placeholder="Truck plate"></label><label>Start (local)<input name="start_at" type="datetime-local" required></label><label>End (local)<input name="end_at" type="datetime-local" required></label></div><button class="button" type="submit">Reserve dock window</button></form>
+      {% endif %}
+      <div class="panel"><div class="panel-title"><h3>Door directory</h3></div><div id="dock-door-table" class="table-wrap"></div></div>
+      <div class="panel"><div class="panel-title"><h3>Appointment queue</h3><button id="dock-refresh" class="button button-secondary" type="button">Refresh</button></div><div id="dock-appointments-table" class="table-wrap"></div><button id="dock-more" class="button button-secondary" type="button" hidden>Load older</button></div>
+      <p id="dock-feedback" role="status" aria-live="polite"></p>
+    </section>
     <section class="section-view hidden" data-view="inbound" id="ops-inbound">
       <div class="section-title"><div><h2>Inbound dock &amp; receiving</h2><p>Plan against existing purchase orders, confirm arrival, scan correct SKUs and document damaged or short goods. Damaged items are excluded from saleable stock.</p></div></div>
       {% if role in ['owner','manager'] %}
@@ -300,5 +312,5 @@
 </div>
 <meta name="csrf-token" content="{{ csrf }}">
 <script src="/static/app.js" defer></script>
-{% if not is_demo %}<script src="/static/advanced_ops.js" defer></script><script src="/static/integrity_audit.js" defer></script>{% endif %}
+{% if not is_demo %}<script src="/static/advanced_ops.js" defer></script><script src="/static/integrity_audit.js" defer></script><script src="/static/dock_scheduler.js" defer></script>{% endif %}
 {% endblock %}
