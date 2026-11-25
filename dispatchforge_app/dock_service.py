@@ -205,3 +205,13 @@ def no_show(session, bid, appointment_id, actor_id, note):
     _event(session, bid, appt, 'no_show', actor_id, note)
     session.flush()
     return _serialize(appt)
+
+
+def history(session, bid, appointment_id):
+    _appointment(session, bid, appointment_id)
+    events = session.scalars(select(DockAppointmentEvent).where(
+        DockAppointmentEvent.business_id == bid,
+        DockAppointmentEvent.appointment_id == appointment_id
+    ).order_by(DockAppointmentEvent.id)).all()
+    return [{'id': e.id, 'action': e.action, 'actor_id': e.actor_id,
+             'note': e.note, 'created_at': e.created_at.isoformat()} for e in events]
