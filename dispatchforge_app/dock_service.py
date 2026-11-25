@@ -181,3 +181,14 @@ def complete(session, bid, appointment_id, actor_id, note=''):
     _event(session, bid, appt, 'completed', actor_id, note)
     session.flush()
     return _serialize(appt)
+
+
+def cancel(session, bid, appointment_id, actor_id, note):
+    appt = _appointment(session, bid, appointment_id)
+    _warehouse(session, bid, appt.warehouse_id, lock=True)
+    if appt.status != 'scheduled': raise DomainError('Only scheduled appointments can be canceled', 409)
+    note = _clean(note, 'Cancellation reason', 300)
+    appt.status = 'canceled'; appt.canceled_at = utcnow()
+    _event(session, bid, appt, 'canceled', actor_id, note)
+    session.flush()
+    return _serialize(appt)
