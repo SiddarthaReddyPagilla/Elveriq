@@ -539,3 +539,16 @@ class ShipmentTrackingUpdate(Base):
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     recorded_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DockDoor(Base):
+    """Physical receiving/shipping door. Door codes are unique per warehouse."""
+    __tablename__ = "dock_doors"
+    __table_args__ = (UniqueConstraint("business_id", "warehouse_id", "code", name="uq_dock_door_code"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), nullable=False, index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(16), default="both", nullable=False)
+    active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
