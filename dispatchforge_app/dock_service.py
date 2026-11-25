@@ -54,3 +54,16 @@ def _serialize(appointment):
        'end_at': appointment.end_at.isoformat() + 'Z', 'status': appointment.status,
        'checked_in_at': appointment.checked_in_at.isoformat() + 'Z' if appointment.checked_in_at else None,
        'completed_at': appointment.completed_at.isoformat() + 'Z' if appointment.completed_at else None}
+
+
+def create_door(session, bid, wid, code, purpose):
+    _warehouse(session, bid, wid)
+    code = _clean(code, 'Door code', 64).upper()
+    if purpose not in {'inbound', 'outbound', 'both'}:
+        raise DomainError('Door purpose must be inbound, outbound or both')
+    if session.scalar(select(DockDoor.id).where(DockDoor.business_id == bid,
+         DockDoor.warehouse_id == wid, DockDoor.code == code)):
+        raise DomainError('Door code already exists in this warehouse', 409)
+    door = DockDoor(business_id=bid, warehouse_id=wid, code=code, purpose=purpose)
+    session.add(door); session.flush()
+    return {'id': door.id, 'warehouse_id': wid, 'code': code, 'purpose': purpose, 'active': True}
