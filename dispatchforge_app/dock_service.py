@@ -45,15 +45,19 @@ def _clean(value, label, maximum):
         raise DomainError(f'{label} must be 1 to {maximum} characters')
     return value
 
+def _aware(value):
+    # SQLite drops tzinfo; PostgreSQL preserves TIMESTAMPTZ. Interpret naive test dates as UTC.
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
 def _serialize(appointment):
     return {'id': appointment.id, 'warehouse_id': appointment.warehouse_id,
        'door_id': appointment.door_id, 'direction': appointment.direction,
        'reference': appointment.reference, 'carrier': appointment.carrier,
        'vehicle_plate': appointment.vehicle_plate, 'note': appointment.note,
-       'start_at': appointment.start_at.isoformat() + 'Z',
-       'end_at': appointment.end_at.isoformat() + 'Z', 'status': appointment.status,
-       'checked_in_at': appointment.checked_in_at.isoformat() + 'Z' if appointment.checked_in_at else None,
-       'completed_at': appointment.completed_at.isoformat() + 'Z' if appointment.completed_at else None}
+       'start_at': _aware(appointment.start_at).isoformat(),
+       'end_at': _aware(appointment.end_at).isoformat(), 'status': appointment.status,
+       'checked_in_at': _aware(appointment.checked_in_at).isoformat() if appointment.checked_in_at else None,
+       'completed_at': _aware(appointment.completed_at).isoformat() if appointment.completed_at else None}
 
 
 def create_door(session, bid, wid, code, purpose):
@@ -82,7 +86,7 @@ def _utc_time(value):
         result = datetime.fromisoformat(value.replace('Z', '+00:00'))
         if result.tzinfo is None or result.utcoffset() is None:
             raise ValueError('timezone required')
-        return result.astimezone(timezone.utc).replace(tzinfo=None)
+        return result.astimezone(timezone.utc)
     except (AttributeError, TypeError, ValueError):
         raise DomainError('Use an ISO 8601 timestamp with UTC offset')
 
@@ -90,7 +94,7 @@ def _window(start, end):
     start, end = _utc_time(start), _utc_time(end)
     if end - start < timedelta(minutes=15) or end - start > timedelta(hours=24):
         raise DomainError('Appointment must last 15 minutes to 24 hours')
-    if start < datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1):
+    if start < datetime.now(timezone.utc) - timedelta(days=1):
         raise DomainError('Cannot schedule a window more than one day in the past')
     return start, end
 
@@ -146,8 +150,8 @@ def availability(session, bid, door_id, start_at, end_at):
         DockAppointment.end_at > start).order_by(DockAppointment.start_at)).all()
     return {'door_id': door.id, 'available': door.active and len(matches) == 0,
             'conflicts': [{'id': a.id, 'reference': a.reference,
-                'start_at': a.start_at.isoformat() + 'Z',
-                'end_at': a.end_at.isoformat() + 'Z'} for a in matches]}
+                'start_at': _aware(a.start_at).isoformat(),
+                'end_at': _aware(a.end_at).isoformat()} for a in matches]}
 
 
 def list_appointments(session, bid, wid=None, status=None, before_id=None, limit=100):
@@ -198,7 +202,7 @@ def no_show(session, bid, appointment_id, actor_id, note):
     appt = _appointment(session, bid, appointment_id)
     _warehouse(session, bid, appt.warehouse_id, lock=True)
     if appt.status != 'scheduled': raise DomainError('Only scheduled appointments can be marked no-show', 409)
-    if datetime.now(timezone.utc).replace(tzinfo=None) < appt.start_at:
+    if datetime.now(timezone.utc) < _aware(appt.start_at):
         raise DomainError('Cannot mark a no-show before its window begins', 409)
     note = _clean(note, 'No-show reason', 300)
     appt.status = 'no_show'
