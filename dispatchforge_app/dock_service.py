@@ -159,3 +159,14 @@ def list_appointments(session, bid, wid=None, status=None, before_id=None, limit
     if status: q = q.where(DockAppointment.status == status)
     if before_id: q = q.where(DockAppointment.id < before_id)
     return [_serialize(a) for a in session.scalars(q.order_by(DockAppointment.id.desc()).limit(limit))]
+
+
+def check_in(session, bid, appointment_id, actor_id, note=''):
+    appt = _appointment(session, bid, appointment_id)
+    _warehouse(session, bid, appt.warehouse_id, lock=True)
+    if appt.status != 'scheduled': raise DomainError('Only scheduled appointments can check in', 409)
+    if len(note) > 300: raise DomainError('Note exceeds 300 characters')
+    appt.status = 'checked_in'; appt.checked_in_at = utcnow()
+    _event(session, bid, appt, 'checked_in', actor_id, note)
+    session.flush()
+    return _serialize(appt)
