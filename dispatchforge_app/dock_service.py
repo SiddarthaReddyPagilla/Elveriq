@@ -170,3 +170,14 @@ def check_in(session, bid, appointment_id, actor_id, note=''):
     _event(session, bid, appt, 'checked_in', actor_id, note)
     session.flush()
     return _serialize(appt)
+
+
+def complete(session, bid, appointment_id, actor_id, note=''):
+    appt = _appointment(session, bid, appointment_id)
+    _warehouse(session, bid, appt.warehouse_id, lock=True)
+    if appt.status != 'checked_in': raise DomainError('Check in before completing an appointment', 409)
+    if len(note) > 300: raise DomainError('Note exceeds 300 characters')
+    appt.status = 'completed'; appt.completed_at = utcnow()
+    _event(session, bid, appt, 'completed', actor_id, note)
+    session.flush()
+    return _serialize(appt)
