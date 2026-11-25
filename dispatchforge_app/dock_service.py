@@ -148,3 +148,14 @@ def availability(session, bid, door_id, start_at, end_at):
             'conflicts': [{'id': a.id, 'reference': a.reference,
                 'start_at': a.start_at.isoformat() + 'Z',
                 'end_at': a.end_at.isoformat() + 'Z'} for a in matches]}
+
+
+def list_appointments(session, bid, wid=None, status=None, before_id=None, limit=100):
+    if wid is not None: _warehouse(session, bid, wid)
+    if status is not None and status not in {'scheduled','checked_in','completed','canceled','no_show'}:
+        raise DomainError('Invalid appointment status')
+    q = select(DockAppointment).where(DockAppointment.business_id == bid)
+    if wid is not None: q = q.where(DockAppointment.warehouse_id == wid)
+    if status: q = q.where(DockAppointment.status == status)
+    if before_id: q = q.where(DockAppointment.id < before_id)
+    return [_serialize(a) for a in session.scalars(q.order_by(DockAppointment.id.desc()).limit(limit))]
