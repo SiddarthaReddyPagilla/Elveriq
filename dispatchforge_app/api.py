@@ -1277,3 +1277,24 @@ def export_integrity_audit(request: Request,
     return Response(stream.getvalue(), media_type='text/csv; charset=utf-8',
         headers={'Content-Disposition': 'attachment; filename="elveriq-integrity-audit.csv"',
                  'Cache-Control': 'no-store'})
+
+
+# Dock management request models; intentionally separate from inventory posting.
+class DockDoorIn(BaseModel):
+    warehouse_id: int = Field(gt=0)
+    code: str = Field(min_length=1, max_length=64)
+    purpose: str = Field(default='both', pattern='^(inbound|outbound|both)$')
+
+class DockScheduleIn(BaseModel):
+    warehouse_id: int = Field(gt=0)
+    door_id: int = Field(gt=0)
+    direction: str = Field(pattern='^(inbound|outbound)$')
+    reference: str = Field(min_length=1, max_length=100)
+    start_at: str = Field(min_length=19, max_length=40)
+    end_at: str = Field(min_length=19, max_length=40)
+    carrier: str = Field(default='', max_length=120)
+    vehicle_plate: str = Field(default='', max_length=64)
+    note: str = Field(default='', max_length=300)
+
+class DockNoteIn(BaseModel):
+    note: str = Field(default='', max_length=300)
