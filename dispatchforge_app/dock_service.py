@@ -192,3 +192,16 @@ def cancel(session, bid, appointment_id, actor_id, note):
     _event(session, bid, appt, 'canceled', actor_id, note)
     session.flush()
     return _serialize(appt)
+
+
+def no_show(session, bid, appointment_id, actor_id, note):
+    appt = _appointment(session, bid, appointment_id)
+    _warehouse(session, bid, appt.warehouse_id, lock=True)
+    if appt.status != 'scheduled': raise DomainError('Only scheduled appointments can be marked no-show', 409)
+    if datetime.now(timezone.utc).replace(tzinfo=None) < appt.start_at:
+        raise DomainError('Cannot mark a no-show before its window begins', 409)
+    note = _clean(note, 'No-show reason', 300)
+    appt.status = 'no_show'
+    _event(session, bid, appt, 'no_show', actor_id, note)
+    session.flush()
+    return _serialize(appt)
