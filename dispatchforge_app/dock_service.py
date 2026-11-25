@@ -134,3 +134,17 @@ def schedule(session, bid, wid, door_id, direction, reference, start_at, end_at,
     session.add(appt); session.flush()
     _event(session, bid, appt, 'scheduled', actor_id, note)
     return _serialize(appt), False
+
+
+def availability(session, bid, door_id, start_at, end_at):
+    door = _door(session, bid, door_id)
+    _warehouse(session, bid, door.warehouse_id)
+    start, end = _window(start_at, end_at)
+    matches = session.scalars(select(DockAppointment).where(
+        DockAppointment.business_id == bid, DockAppointment.door_id == door.id,
+        DockAppointment.status.in_(ACTIVE), DockAppointment.start_at < end,
+        DockAppointment.end_at > start).order_by(DockAppointment.start_at)).all()
+    return {'door_id': door.id, 'available': door.active and len(matches) == 0,
+            'conflicts': [{'id': a.id, 'reference': a.reference,
+                'start_at': a.start_at.isoformat() + 'Z',
+                'end_at': a.end_at.isoformat() + 'Z'} for a in matches]}
