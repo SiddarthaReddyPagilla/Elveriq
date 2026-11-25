@@ -75,3 +75,21 @@ def list_doors(session, bid, wid=None):
     if wid is not None: q = q.where(DockDoor.warehouse_id == wid)
     return [{'id': d.id, 'warehouse_id': d.warehouse_id, 'code': d.code,
              'purpose': d.purpose, 'active': d.active} for d in session.scalars(q.order_by(DockDoor.id))]
+
+
+def _utc_time(value):
+    try:
+        result = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if result.tzinfo is None or result.utcoffset() is None:
+            raise ValueError('timezone required')
+        return result.astimezone(timezone.utc).replace(tzinfo=None)
+    except (AttributeError, TypeError, ValueError):
+        raise DomainError('Use an ISO 8601 timestamp with UTC offset')
+
+def _window(start, end):
+    start, end = _utc_time(start), _utc_time(end)
+    if end - start < timedelta(minutes=15) or end - start > timedelta(hours=24):
+        raise DomainError('Appointment must last 15 minutes to 24 hours')
+    if start < datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1):
+        raise DomainError('Cannot schedule a window more than one day in the past')
+    return start, end
